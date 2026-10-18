@@ -172,19 +172,6 @@ pub fn apply_profile(row: &mut Contributor, profile: &Account, observed_at: Ts) 
     row.profile_name_checked = true;
 }
 
-/// Catalog rules override automatic classification.
-pub fn apply_identity_rules(contributors: &mut [Contributor], identity_rules: &HashMap<String, String>) {
-    for contributor in contributors {
-        if let Some(kind) = identity_rules.get(&contributor.login.trim().to_lowercase()) {
-            contributor.identity_kind = kind.clone();
-            contributor.identity_kind_source = "CATALOG_RULE".into();
-            if kind == "BOT" {
-                contributor.is_bot = true;
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,13 +243,5 @@ mod tests {
         let history: Vec<_> =
             contributor.profile_company_history.iter().map(|o| (o.company.as_str(), o.observed_at)).collect();
         assert_eq!(history, vec![("Old Co", Some(Ts(100))), ("", Some(Ts(200)))]);
-    }
-
-    #[test]
-    fn identity_rules_win() {
-        let mut contributors = vec![row("web-flow", "GitHub", "")];
-        apply_identity_rules(&mut contributors, &HashMap::from([("web-flow".into(), "BOT".into())]));
-        assert_eq!(contributors[0].identity_kind, "BOT");
-        assert!(contributors[0].is_bot);
     }
 }

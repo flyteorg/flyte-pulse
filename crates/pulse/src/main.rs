@@ -4,6 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 use pulse::companies::load_company_catalog;
+use pulse::config::{apply_identity_rules, load_catalog};
 use pulse::snapshot_builder::{build_snapshot, write_snapshot};
 use pulse::state_io::{read_state, write_state};
 
@@ -38,7 +39,7 @@ struct ConvertArgs {
 struct BuildArgs {
     #[arg(long, default_value = "pulse-state.json.gz")]
     state: PathBuf,
-    /// Directory containing companies.yaml and affiliations.yaml.
+    /// Directory containing repositories.yaml, companies.yaml, and affiliations.yaml.
     #[arg(long, default_value = "config")]
     config_dir: PathBuf,
     /// Output directory for the snapshot files.
@@ -47,7 +48,10 @@ struct BuildArgs {
 }
 
 fn build(args: BuildArgs) -> Result<()> {
-    let state = read_state(&args.state)?;
+    let mut state = read_state(&args.state)?;
+    // Identity rule changes take effect on the next build, without a resync.
+    let catalog = load_catalog(&args.config_dir.join("repositories.yaml"))?;
+    apply_identity_rules(&mut state.contributors, &catalog.identity_rules);
     let companies = load_company_catalog(&args.config_dir, &state.contributors)?;
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
     let snapshot = build_snapshot(&state, &companies, now);

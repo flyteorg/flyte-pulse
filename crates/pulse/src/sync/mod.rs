@@ -18,11 +18,11 @@ use anyhow::{Context, Result, bail};
 use pulse_core::state::{Commit, EmailIdentity, PullRequest, PullRequestCommit, Repository, State};
 use pulse_core::time::{Ts, format_timestamp, parse_timestamp};
 
-use crate::config::{Catalog, RepositorySpec, load_catalog};
+use crate::config::{Catalog, RepositorySpec, apply_identity_rules, load_catalog};
 use crate::state_io::{read_state_or_default, write_state};
 use git::{GitCommit, GitRepo, branch_refspec, pull_refspec};
 use github::{GitHub, PullRequestNode, WaitBudgetExhausted};
-use identity::{Account, Noreply, apply_identity_rules, apply_profile, email_hash, parse_noreply, upsert_contributor};
+use identity::{Account, Noreply, apply_profile, email_hash, parse_noreply, upsert_contributor};
 use links::{LinkInputs, plan_links, rev_list_args};
 
 const DAY: i64 = 86_400;

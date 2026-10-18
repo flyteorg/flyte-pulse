@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
-use pulse_core::state::TargetBranch;
+use pulse_core::state::{Contributor, TargetBranch};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
@@ -191,6 +191,19 @@ pub fn classify_github_account(
     ("UNKNOWN".into(), "UNKNOWN".into())
 }
 
+/// Catalog rules override automatic classification.
+pub fn apply_identity_rules(contributors: &mut [Contributor], identity_rules: &HashMap<String, String>) {
+    for contributor in contributors {
+        if let Some(kind) = identity_rules.get(&contributor.login.trim().to_lowercase()) {
+            contributor.identity_kind = kind.clone();
+            contributor.identity_kind_source = "CATALOG_RULE".into();
+            if kind == "BOT" {
+                contributor.is_bot = true;
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,6 +216,17 @@ mod tests {
         let flyte = catalog.repositories.iter().find(|r| r.name == "flyte").unwrap();
         assert_eq!(flyte.target_branches.len(), 2);
         assert_eq!(catalog.identity_rules.get("goreleaserbot").map(String::as_str), Some("BOT"));
+        assert_eq!(catalog.identity_rules.get("claude").map(String::as_str), Some("AI"));
+    }
+
+    #[test]
+    fn identity_rules_win() {
+        let mut contributors =
+            vec![Contributor { login: "Claude".into(), identity_kind: "HUMAN".into(), ..Contributor::default() }];
+        apply_identity_rules(&mut contributors, &HashMap::from([("claude".into(), "AI".into())]));
+        assert_eq!(contributors[0].identity_kind, "AI");
+        assert_eq!(contributors[0].identity_kind_source, "CATALOG_RULE");
+        assert!(!contributors[0].is_bot);
     }
 
     #[test]
