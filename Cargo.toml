@@ -31,7 +31,8 @@ serde_yaml_ng = "0.10.0"
 sha2 = "0.11.1"
 tempfile = "3.27.0"
 tokio = { version = "1.53.3", features = ["rt-multi-thread", "macros", "process", "time", "fs"] }
-# Must match the wasm-bindgen CLI version in .github/workflows/sync.yml.
+# Exact, because the wasm-bindgen CLI must match it; the deploy workflow installs
+# the CLI version from Cargo.lock.
 wasm-bindgen = "=0.2.129"
 
 [profile.release]

@@ -107,8 +107,12 @@ python3 -m http.server -d dist 8000   # http://localhost:8000
 `rust-toolchain.toml` is the only place the Rust version is set; rustup installs
 that toolchain with the `wasm32-unknown-unknown` target on first use.
 `scripts/build-site.sh` also needs `wasm-bindgen-cli` matching the `wasm-bindgen`
-crate (`cargo install wasm-bindgen-cli --version 0.2.129 --locked`); `wasm-opt`
-(binaryen) is used when present.
+version in `Cargo.lock` (for example `cargo install wasm-bindgen-cli --version
+0.2.129 --locked`); `wasm-opt` (binaryen) is used when present.
+
+The views are plain ES modules with no runtime dependencies. ESLint and Prettier
+check them: `npm ci`, then `npm run lint` and `npm run format:check`
+(`npm run format` fixes formatting).
 
 ### Seeding (one time)
 
@@ -137,10 +141,12 @@ Workflows:
   the release asset, build, and deploy Pages. Run it manually to reseed
   repositories (`reseed: owner/name ...`) or to deploy without syncing. Pushes to
   `main` that touch code, web, or config rebuild and deploy from the saved state.
-- `ci.yml` runs formatting, clippy, tests, the WebAssembly build, and a
-  JavaScript syntax check with a read-only token.
+- `ci.yml` runs formatting, clippy, tests, the WebAssembly build, ESLint, and
+  Prettier with a read-only token.
 
 Actions are pinned by commit SHA; jobs get write access only where they need it.
+Dependabot opens one grouped pull request per week for each of Rust, JS, and
+GitHub Actions, proposing only releases that are at least 7 days old.
 
 To add a repository, add it to `config/repositories.yaml`; the next sync makes a
 full clone and collects all of its pull requests. Company and affiliation changes
