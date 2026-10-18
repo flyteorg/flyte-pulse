@@ -1,0 +1,6 @@
+companies:
+- id: union
+  canonical_name: Union
+  website_url: https://union.ai
+  aliases:
+  - '@unionai'

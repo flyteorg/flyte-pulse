@@ -1,0 +1,147 @@
+# Flyte Pulse (WebAssembly)
+
+Community activity across the Flyte repositories, served as a static GitHub Pages
+site. Rust collects the data in GitHub Actions and answers every dashboard query
+in the browser through WebAssembly; there is no database or API server.
+
+Site: https://flyte.org/flyte-pulse/
+
+```
+GitHub Actions (daily)                          GitHub Pages
+┌───────────────────────────────┐   pulse.bin.gz   ┌──────────────────────────────┐
+│ pulse sync                    │ ───────────────▶ │ index.html + JS views        │
+│   Git clones → commits, links │                  │ pulse_web.wasm (Rust)        │
+│   GitHub GraphQL → PRs, people│                  │   loads the snapshot, answers│
+│ pulse build → snapshot        │                  │   /api/... queries in-page   │
+└──────────────┬────────────────┘                  └──────────────────────────────┘
+               │ state
+               ├─▶ data branch: state/ (JSON lines, full history)
+               └─▶ release "pulse-state": pulse-state.json.gz (latest copy)
+```
+
+## Layout
+
+| Path | What it is |
+|---|---|
+| `crates/pulse-core` | Data model, snapshot format, and every dashboard query. Compiles natively and to WebAssembly. |
+| `crates/pulse` | `pulse` CLI: `sync` (collector), `build` (snapshot), `convert` (state formats). |
+| `crates/pulse-web` | WebAssembly wrapper (`Pulse.load`, `pulse.request(url, today)`). |
+| `tools/pulse-seed` | One-time import of an existing raw Parquet dataset. Not built by default. |
+| `web/` | Single-page site: `index.html`, hash-routed JS views, CSS. |
+| `config/` | Reviewed catalogs: `repositories.yaml`, `companies.yaml`, `affiliations.yaml`. |
+| `scripts/build-site.sh` | Builds the site into `dist/`: WebAssembly, web assets, and the data snapshot. |
+
+## How the data is collected
+
+`pulse sync` updates the state for every `ACTIVE` repository in
+`config/repositories.yaml`:
+
+- **Commits come from Git, not the API.** The first sync of a repository (no Git
+  cursor yet, a reseed, or changed target branches) makes a full bare clone of the
+  target branches plus GitHub's `refs/pull/*/head` refs. Later syncs fetch with
+  `--shallow-since` from the last cursor (minus `--overlap-days`), plus the refs of
+  pull requests whose head changed. Commit details, line stats, and branch
+  membership are read from the clone, which is deleted afterwards.
+- **PR→commit links come from Git too:** `git rev-list <PR head> --not <target
+  branches>` (or `<head> --not <merge>^1` for merge commits). This matches GitHub's
+  PR commit lists without one API request per pull request. When a range reaches
+  the shallow boundary, the fetch is deepened and the range recomputed.
+- **The GraphQL API is used only for what Git cannot provide:** pull request
+  metadata (about one point per 100 PRs), batched lookups of commit emails without
+  a known account, and a 90-day public profile refresh. Emails are never stored;
+  the state keeps a truncated SHA-256 per email.
+- Identifiers are stable across syncs: repositories are `github.com:<node id>`,
+  people are `github:<account id>`, and pull requests use GitHub's numeric IDs.
+
+`pulse build` precomputes daily metrics, company credit, and AI attribution
+(Co-Authored-By / Assisted-By trailers, AI identities), and writes `pulse.bin.gz`
+(postcard, gzip) plus `meta.json`. The browser downloads the snapshot once; each
+page then asks the WebAssembly module for an HTTP-style URL such as
+`/api/dashboard?days=30` and renders the JSON it returns.
+
+Counting rules:
+
+- Commits count when they are listed on a tracked pull request. Git also returns
+  direct pushes and imported history; they stay in the state but are not counted.
+- Bot activity (GitHub bot accounts, `[bot]` logins, and `identity_rules` in
+  `repositories.yaml`, which classify `web-flow` as a bot) is kept but not counted.
+- Each merged PR's full line diff is shared by its author and recognized human or
+  AI co-authors; company credit uses the affiliation on each event's date.
+- The site is public and has no login. It shows public GitHub activity and the
+  reviewed company mappings from `config/`.
+
+## State
+
+The collected state (repositories, contributors, pull requests, commits, links,
+watermarks) has two interchangeable formats; `pulse` picks one from the path:
+
+- `*.json.gz` / `*.json`: one JSON document. Published as the `pulse-state.json.gz`
+  asset of the `pulse-state` release after every sync.
+- any other path: a directory of sorted JSON-lines files (`manifest.json`,
+  `repositories.jsonl`, `contributors.jsonl`, `email_identities.jsonl`, and
+  `pull_requests/`, `commits/`, `pull_request_commits/` split per repository).
+  Committed to `state/` on the orphan `data` branch, so the history of every
+  sync is kept with small diffs.
+
+```sh
+pulse convert --from pulse-state.json.gz --to state   # file → directory
+pulse convert --from state --to pulse-state.json.gz   # directory → file
+```
+
+## Commands
+
+```sh
+cargo build --release -p pulse
+
+# Collect (token: PULSE_GITHUB_TOKEN, else GITHUB_TOKEN; read-only access to public repos)
+GITHUB_TOKEN=$(gh auth token) ./target/release/pulse sync --state state
+#   --only owner/name     restrict to repositories (repeatable)
+#   --reseed owner/name   discard a repository's data and collect it again
+#   --history-days N      PR history for repositories without a cursor (0 = all)
+
+# Build the site into dist/ and serve it
+scripts/build-site.sh state dist
+python3 -m http.server -d dist 8000   # http://localhost:8000
+```
+
+`scripts/build-site.sh` needs the `wasm32-unknown-unknown` target and
+`wasm-bindgen-cli` matching the `wasm-bindgen` crate (`cargo install
+wasm-bindgen-cli --version 0.2.129`); `wasm-opt` (binaryen) is used when present.
+
+### Seeding (one time)
+
+The initial state was imported from an existing raw dataset (a directory with
+`manifest.json` and Parquet tables) instead of scanning all history through the API:
+
+```sh
+cargo run --release -p pulse-seed -- --raw-dir /path/to/raw-dataset --out seed.json.gz
+GITHUB_TOKEN=$(gh auth token) ./target/release/pulse sync --state seed.json.gz --out state
+```
+
+The dataset's cursors become PR scan cursors, so the first sync scans pull
+requests incrementally while making a full Git clone of every repository.
+
+## GitHub setup
+
+1. Push `main` and the `data` branch.
+2. Settings → Pages → Source: **GitHub Actions**.
+3. Optional: add a `PULSE_GITHUB_TOKEN` secret (a fine-grained token with public
+   read access) for a higher rate limit; the workflow's `GITHUB_TOKEN` is enough
+   for daily syncs.
+
+Workflows:
+
+- `sync.yml` runs daily at 02:17 UTC: sync, commit the state to `data`, replace
+  the release asset, build, and deploy Pages. Run it manually to reseed
+  repositories (`reseed: owner/name ...`) or to deploy without syncing. Pushes to
+  `main` that touch code, web, or config rebuild and deploy from the saved state.
+- `ci.yml` runs formatting, clippy, tests, the WebAssembly build, and a
+  JavaScript syntax check.
+
+To add a repository, add it to `config/repositories.yaml`; the next sync makes a
+full clone and collects all of its pull requests. Company and affiliation changes
+take effect on the next build; no resync is needed.
+
+## License
+
+Apache License 2.0, like the other Flyte repositories. See [LICENSE](LICENSE).

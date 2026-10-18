@@ -1,0 +1,145 @@
+# Daily: collect new activity (Git clones + GitHub GraphQL), save the state to the
+# `data` branch and the `pulse-state` release, then rebuild and deploy the site.
+# Pushes to main rebuild and deploy the site from the saved state without syncing.
+name: Sync and deploy
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      sync:
+        description: Collect new activity before deploying
+        type: boolean
+        default: true
+      reseed:
+        description: Repositories to collect again from scratch (space-separated owner/name)
+        type: string
+        default: ""
+      history_days:
+        description: PR history for repositories without a scan cursor (0 = all)
+        type: string
+        default: "0"
+  push:
+    branches: [main]
+    paths:
+      - "crates/**"
+      - "web/**"
+      - "config/**"
+      - "scripts/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/sync.yml"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pulse-sync
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  STATE_RELEASE: pulse-state
+  DATA_BRANCH: data
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the data branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads "$remote" "$DATA_BRANCH" >/dev/null; then
+            git clone --quiet --depth 1 --branch "$DATA_BRANCH" --single-branch "$remote" data-branch
+          else
+            git init --quiet -b "$DATA_BRANCH" data-branch
+            git -C data-branch remote add origin "$remote"
+          fi
+          if [ -f data-branch/state/manifest.json ]; then
+            echo "STATE=data-branch/state" >> "$GITHUB_ENV"
+          elif gh release download "$STATE_RELEASE" --pattern pulse-state.json.gz --dir . 2>/dev/null; then
+            echo "STATE=pulse-state.json.gz" >> "$GITHUB_ENV"
+          else
+            echo "::error::No saved state on the $DATA_BRANCH branch or the $STATE_RELEASE release; seed it first (see README)."
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.129
+      - name: Install wasm-opt
+        run: sudo apt-get install -y --no-install-recommends binaryen
+
+      - name: Build the collector
+        run: cargo build --release -p pulse
+
+      - name: Sync
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.sync)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # Optional personal access token with a higher rate limit, for reseeds.
+          PULSE_GITHUB_TOKEN: ${{ secrets.PULSE_GITHUB_TOKEN }}
+          RESEED: ${{ inputs.reseed }}
+          HISTORY_DAYS: ${{ inputs.history_days || '0' }}
+        run: |
+          args=(--state "$STATE" --out data-branch/state --config-dir config --history-days "$HISTORY_DAYS")
+          for repository in $RESEED; do args+=(--reseed "$repository"); done
+          ./target/release/pulse sync "${args[@]}"
+          echo "STATE=data-branch/state" >> "$GITHUB_ENV"
+          echo "SYNCED=true" >> "$GITHUB_ENV"
+
+      - name: Save state to the data branch
+        if: env.SYNCED == 'true'
+        working-directory: data-branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A state
+          if git diff --cached --quiet; then
+            echo "State unchanged"
+          else
+            git commit --quiet -m "Sync $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push --quiet origin "HEAD:$DATA_BRANCH"
+          fi
+
+      - name: Publish state release asset
+        if: env.SYNCED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./target/release/pulse convert --from data-branch/state --to pulse-state.json.gz
+          if ! gh release view "$STATE_RELEASE" >/dev/null 2>&1; then
+            gh release create "$STATE_RELEASE" --title "Pulse state" --latest=false \
+              --notes "Collected Flyte Pulse state, replaced by every sync. The data branch keeps its history."
+          fi
+          gh release upload "$STATE_RELEASE" pulse-state.json.gz --clobber
+
+      - name: Build the site
+        run: scripts/build-site.sh "$STATE" dist
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

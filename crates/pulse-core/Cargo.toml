@@ -1,0 +1,11 @@
+[package]
+name = "pulse-core"
+description = "Flyte Pulse data model, snapshot format, and dashboard queries (native and WebAssembly)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+postcard.workspace = true
+serde.workspace = true
+serde_json.workspace = true

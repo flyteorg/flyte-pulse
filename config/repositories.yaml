@@ -1,0 +1,116 @@
+# Repositories to ingest. Edit this catalog through a reviewed PR.
+# Optional overrides for GitHub account classification. An empty list uses
+# GitHub account types and bot-login heuristics. Rules match logins ignoring case
+# and take precedence over those automatic classifications.
+# Example:
+# identity_rules:
+#   - provider: GITHUB
+#     login: example-ai-agent
+#     kind: AI                 # HUMAN, BOT, AI, or UNKNOWN
+identity_rules:
+  - provider: GITHUB
+    login: goreleaserbot
+    kind: BOT
+  # GitHub's committer for web UI merges and edits (noreply@github.com); GitHub
+  # reports it as a User account.
+  - provider: GITHUB
+    login: web-flow
+    kind: BOT
+# Each ACTIVE repository needs at least one target branch. Each tracked branch
+# is shown separately (for example, flyte main/v2 and master/v1). The optional
+# module is a grouping label; label is the branch's display name. Use INACTIVE
+# to retain a repository in the catalog without syncing it.
+# Example entry:
+#   - provider: GITHUB
+#     host: github.com
+#     owner: flyteorg
+#     name: example-repo
+#     module: sdk
+#     status: ACTIVE          # or INACTIVE
+#     target_branches:
+#       - name: main
+#         label: v2           # optional
+repositories:
+  - provider: GITHUB
+    host: github.com
+    owner: flyteorg
+    name: flyte
+    module: core
+    status: ACTIVE
+    target_branches:
+      - name: main
+        label: v2
+      - name: master
+        label: v1
+  - provider: GITHUB
+    host: github.com
+    owner: flyteorg
+    name: flyte-sdk
+    module: sdk
+    status: ACTIVE
+    target_branches:
+      - name: main
+        label: v2
+  - provider: GITHUB
+    host: github.com
+    owner: flyteorg
+    name: flytekit
+    module: sdk-v1
+    status: ACTIVE
+    target_branches:
+      - name: master
+        label: v1
+  - provider: GITHUB
+    host: github.com
+    owner: flyteorg
+    name: flyte-sdk-go
+    module: sdk-go
+    status: ACTIVE
+    target_branches:
+      - name: main
+        label: v2
+  - provider: GITHUB
+    host: github.com
+    owner: flyteorg
+    name: flyte-sdk-rs
+    module: sdk-rust
+    status: ACTIVE
+    target_branches:
+      - name: main
+        label: v2
+  - provider: GITHUB
+    host: github.com
+    owner: flyteorg
+    name: flyte-sdk-ts
+    module: sdk-typescript
+    status: ACTIVE
+    target_branches:
+      - name: main
+        label: v2
+  - provider: GITHUB
+    host: github.com
+    owner: flyteorg
+    name: flyte-agent-plugins
+    module: agent-plugins
+    status: ACTIVE
+    target_branches:
+      - name: main
+        label: v2
+  - provider: GITHUB
+    host: github.com
+    owner: flyteorg
+    name: flyte-migrate
+    module: migration
+    status: ACTIVE
+    target_branches:
+      - name: main
+        label: v2
+  - provider: GITHUB
+    host: github.com
+    owner: flyteorg
+    name: flyteconsole
+    module: console-v1
+    status: ACTIVE
+    target_branches:
+      - name: master
+        label: v1

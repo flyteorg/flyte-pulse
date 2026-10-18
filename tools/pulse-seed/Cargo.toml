@@ -1,0 +1,16 @@
+[package]
+name = "pulse-seed"
+description = "One-time import of a raw Parquet dataset into Pulse state"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+pulse-core.workspace = true
+pulse.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+parquet = { version = "60.0.0", default-features = false, features = ["zstd", "snap"] }
+serde = { workspace = true, features = ["derive"] }

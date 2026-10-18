@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Flyte Pulse</title>
+    <link rel="icon" href="data:," />
+    <script>
+      // GitHub Pages serves this page for unknown paths. Old path-style links such as
+      // /<site>/users/<id>?days=30 map to the hash route /<site>/#/users/<id>?days=30.
+      (function () {
+        var sections = ["repositories", "users", "companies", "ai-activity", "ai-contributors"];
+        var segments = location.pathname.split("/").filter(Boolean);
+        var index = segments.findIndex(function (segment) {
+          return sections.indexOf(segment) >= 0;
+        });
+        var base = index >= 0 ? segments.slice(0, index) : segments.slice(0, 1);
+        var route = index >= 0 ? "/" + segments.slice(index).join("/") + location.search : "/";
+        location.replace((base.length ? "/" + base.join("/") : "") + "/#" + route);
+      })();
+    </script>
+  </head>
+  <body>
+    <p><a href="./#/">Open Flyte Pulse</a></p>
+  </body>
+</html>

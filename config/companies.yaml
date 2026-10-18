@@ -1,0 +1,781 @@
+# Canonical companies and exact public profile aliases, maintained through PRs.
+# Alias matches are self-reported current affiliations, not employment dates.
+# Seeded from official websites and the organizations' GitHub profiles.
+# Multiple affiliations and unclear names stay unmapped unless individually reviewed.
+# Add one canonical company per ID. website_url must be HTTPS. aliases are exact
+# public GitHub profile-company values (case and repeated whitespace ignored),
+# not GitHub usernames or email domains. canonical_name also matches as an alias.
+# Use [] when there are no additional known aliases.
+# Example:
+# companies:
+# - id: example-inc
+#   canonical_name: Example Inc.
+#   website_url: https://example.com
+#   aliases:
+#   - '@example-org'
+#   - Example, Inc.
+companies:
+- id: aleph-alpha
+  canonical_name: Aleph Alpha
+  website_url: https://aleph-alpha.com
+  aliases: []
+- id: anthropic
+  canonical_name: Anthropic
+  website_url: https://anthropic.com
+  aliases:
+  - '@anthropics'
+- id: antithesis
+  canonical_name: Antithesis
+  website_url: https://www.antithesis.com/
+  aliases:
+  - '@antithesishq'
+- id: anyscale
+  canonical_name: Anyscale
+  website_url: https://anyscale.com
+  aliases:
+  - '@anyscale'
+- id: attensi
+  canonical_name: Attensi
+  website_url: https://www.attensi.com
+  aliases:
+  - '@Attensi'
+- id: axle
+  canonical_name: Axle Research and Technologies
+  website_url: https://www.axleresearch.com
+  aliases: []
+- id: backblaze
+  canonical_name: Backblaze
+  website_url: https://www.backblaze.com
+  aliases: []
+- id: calcasa
+  canonical_name: Calcasa
+  website_url: https://calcasa.nl
+  aliases:
+  - '@calcasa'
+- id: clearnote-health
+  canonical_name: ClearNote Health
+  website_url: https://www.clearnotehealth.com
+  aliases: []
+- id: colgate-palmolive
+  canonical_name: Colgate-Palmolive
+  website_url: https://www.colgatepalmolive.com
+  aliases:
+  - '@colpal'
+- id: confluent
+  canonical_name: Confluent
+  website_url: https://confluent.io
+  aliases:
+  - '@confluentinc'
+- id: cradle
+  canonical_name: Cradle
+  website_url: https://www.cradle.bio
+  aliases:
+  - Cradle.bio
+  - Cradle (www.cradle.bio)
+- id: derapi
+  canonical_name: Derapi
+  website_url: https://www.derapi.com
+  aliases:
+  - '@derapi'
+- id: dropbox
+  canonical_name: Dropbox
+  website_url: https://dropbox.com/
+  aliases:
+  - '@dropbox'
+- id: elicit
+  canonical_name: Elicit
+  website_url: https://elicit.com/
+  aliases:
+  - '@elicit'
+- id: embark-studios
+  canonical_name: Embark Studios
+  website_url: https://embark.dev
+  aliases:
+  - '@EmbarkStudios'
+- id: enagrams
+  canonical_name: Enagrams
+  website_url: https://www.enagrams.com
+  aliases: []
+- id: eventual
+  canonical_name: Eventual
+  website_url: https://www.eventualcomputing.com/
+  aliases:
+  - '@Eventual-Inc'
+- id: examol
+  canonical_name: Examol
+  website_url: https://examol.io
+  aliases:
+  - '@examol-corp'
+- id: expedia
+  canonical_name: Expedia Group
+  website_url: https://opensource.expediagroup.com/
+  aliases:
+  - '@ExpediaGroup'
+- id: fanatics
+  canonical_name: Fanatics
+  website_url: https://fanaticsinc.com/tech-and-mobile/
+  aliases:
+  - '@Fanatics'
+- id: fermyon
+  canonical_name: Fermyon
+  website_url: https://fermyon.com
+  aliases:
+  - '@fermyon'
+- id: freenome
+  canonical_name: Freenome
+  website_url: https://www.freenome.com
+  aliases:
+  - '@freenome'
+- id: github
+  canonical_name: GitHub
+  website_url: https://github.com/about
+  aliases:
+  - '@github'
+- id: google
+  canonical_name: Google
+  website_url: https://opensource.google/
+  aliases:
+  - '@google'
+- id: google-deepmind
+  canonical_name: Google DeepMind
+  website_url: https://www.deepmind.com/
+  aliases:
+  - '@google-deepmind'
+- id: hakko
+  canonical_name: Hakko AI
+  website_url: https://www.hakko.ai
+  aliases:
+  - Hakko.ai
+- id: hunted-labs
+  canonical_name: Hunted Labs
+  website_url: https://huntedlabs.com/
+  aliases:
+  - '@Hunted-Labs'
+- id: lancedb
+  canonical_name: LanceDB
+  website_url: https://lancedb.com/
+  aliases:
+  - '@lancedb'
+- id: latchbio
+  canonical_name: LatchBio
+  website_url: https://latch.bio
+  aliases:
+  - '@latchbio'
+- id: lila-sciences
+  canonical_name: Lila Sciences
+  website_url: https://www.lila.ai
+  aliases: []
+- id: linkedin
+  canonical_name: LinkedIn
+  website_url: https://www.linkedin.com
+  aliases:
+  - '@LinkedIn @Microsoft @ray-project @flyteorg @vLLM-project @apache'
+- id: liquid-ai
+  canonical_name: Liquid AI
+  website_url: https://liquid.ai
+  aliases:
+  - '@Liquid4All'
+- id: lyft
+  canonical_name: Lyft
+  website_url: https://www.lyft.com
+  aliases:
+  - '@lyft'
+  - Lyft Inc.
+- id: mavik-labs
+  canonical_name: Mavik Labs
+  website_url: https://maviklabs.com
+  aliases:
+  - '@mavik-labs'
+- id: merantix-momentum
+  canonical_name: Merantix Momentum
+  website_url: https://merantix-momentum.com/
+  aliases:
+  - '@merantix-momentum'
+- id: mercari
+  canonical_name: Mercari
+  website_url: https://mercari.com
+  aliases:
+  - '@mercari'
+- id: mercedes-benz
+  canonical_name: Mercedes-Benz
+  website_url: https://opensource.mercedes-benz.com/
+  aliases:
+  - '@mercedes-benz'
+- id: microsoft
+  canonical_name: Microsoft
+  website_url: https://opensource.microsoft.com
+  aliases:
+  - '@microsoft'
+- id: mindsdb
+  canonical_name: MindsDB
+  website_url: https://mindsdb.com
+  aliases:
+  - '@mindsdb'
+- id: mistral
+  canonical_name: Mistral AI
+  website_url: https://mistral.ai
+  aliases: []
+- id: modal
+  canonical_name: Modal
+  website_url: https://modal.com
+  aliases:
+  - '@modal-labs'
+- id: modular
+  canonical_name: Modular
+  website_url: https://www.modular.com
+  aliases: []
+- id: monzo
+  canonical_name: Monzo
+  website_url: https://monzo.com/
+  aliases:
+  - '@monzo'
+- id: netflix
+  canonical_name: Netflix
+  website_url: https://www.netflix.com
+  aliases:
+  - '@Netflix'
+- id: nola-ventures
+  canonical_name: Nola Ventures
+  website_url: https://nola-ventures.com
+  aliases:
+  - '@Nola-Ventures'
+- id: nutanix
+  canonical_name: Nutanix
+  website_url: https://www.nutanix.com
+  aliases: []
+- id: nvidia
+  canonical_name: NVIDIA
+  website_url: https://nvidia.com
+  aliases:
+  - '@NVIDIA'
+- id: odyssey
+  canonical_name: Odyssey
+  website_url: https://odyssey.ml
+  aliases:
+  - '@odysseyml'
+- id: planet
+  canonical_name: Planet Labs
+  website_url: https://planet.com
+  aliases:
+  - '@planetlabs'
+- id: pulumi
+  canonical_name: Pulumi
+  website_url: https://pulumi.com/
+  aliases:
+  - '@pulumi'
+- id: quantpi
+  canonical_name: QuantPi
+  website_url: https://www.quantpi.com
+  aliases:
+  - '@QuantPi'
+- id: reddit
+  canonical_name: Reddit
+  website_url: https://reddit.com/r/redditdev
+  aliases:
+  - '@reddit'
+- id: roboception
+  canonical_name: Roboception
+  website_url: https://roboception.com
+  aliases:
+  - '@roboception'
+- id: runway
+  canonical_name: Runway
+  website_url: https://runwayml.com
+  aliases:
+  - '@runwayml'
+- id: scarf
+  canonical_name: Scarf
+  website_url: https://scarf.sh
+  aliases:
+  - '@scarf-sh'
+- id: schueco
+  canonical_name: Schüco
+  website_url: https://schueco.com
+  aliases:
+  - '@schueco'
+- id: servicenow
+  canonical_name: ServiceNow
+  website_url: https://www.servicenow.com
+  aliases:
+  - '@ServiceNow'
+- id: shopify
+  canonical_name: Shopify
+  website_url: https://shopify.engineering/
+  aliases:
+  - '@Shopify'
+- id: snyk
+  canonical_name: Snyk
+  website_url: https://snyk.io/
+  aliases:
+  - '@snyk'
+- id: spotify
+  canonical_name: Spotify
+  website_url: https://www.spotify.com
+  aliases:
+  - '@spotify'
+- id: stack-av
+  canonical_name: Stack AV
+  website_url: https://www.stackav.com
+  aliases: []
+- id: straitsx
+  canonical_name: StraitsX
+  website_url: https://www.straitsx.com
+  aliases: []
+- id: stripe
+  canonical_name: Stripe
+  website_url: https://stripe.com
+  aliases: []
+- id: summation
+  canonical_name: Summation
+  website_url: https://summation.com
+  aliases:
+  - '@summationai'
+- id: synology
+  canonical_name: Synology
+  website_url: https://www.synology.com
+  aliases: []
+- id: temporal
+  canonical_name: Temporal
+  website_url: https://temporal.io
+  aliases: []
+- id: tensorchord
+  canonical_name: TensorChord
+  website_url: https://vectorchord.ai
+  aliases:
+  - '@tensorchord'
+- id: tensordyne
+  canonical_name: Tensordyne
+  website_url: https://www.tensordyne.ai
+  aliases:
+  - Recogni
+- id: theorem
+  canonical_name: Theorem
+  website_url: https://www.theoremlp.com
+  aliases:
+  - '@theoremlp'
+- id: tiktok
+  canonical_name: TikTok
+  website_url: https://tiktok.com
+  aliases:
+  - '@tiktok'
+- id: trilliant-health
+  canonical_name: Trilliant Health
+  website_url: https://www.trillianthealth.com
+  aliases: []
+- id: union
+  canonical_name: Union
+  website_url: https://www.union.ai
+  aliases:
+  - unionai
+  - '@unionai'
+  - Union AI
+  - Union.ai
+  - flyteorg
+  - '@flyteorg'
+- id: vinted
+  canonical_name: Vinted
+  website_url: https://vinted.com
+  aliases:
+  - '@vinted'
+- id: wayve
+  canonical_name: Wayve
+  website_url: https://wayve.ai
+  aliases: []
+- id: wherobots
+  canonical_name: Wherobots
+  website_url: https://wherobots.com
+  aliases:
+  - '@wherobots'
+- id: wolt
+  canonical_name: Wolt
+  website_url: https://wolt.com
+  aliases:
+  - '@woltapp'
+- id: woven-by-toyota
+  canonical_name: Woven by Toyota, Inc.
+  website_url: https://woven.toyota/
+  aliases:
+  - '@woven-by-toyota'
+- id: xai
+  canonical_name: xAI
+  website_url: https://x.ai/
+  aliases:
+  - '@xai-org'
+- id: xdof
+  canonical_name: XDOF
+  website_url: https://www.xdof.ai
+  aliases: []
+- id: ziprecruiter
+  canonical_name: ZipRecruiter
+  website_url: https://www.ziprecruiter.com
+  aliases:
+  - '@ZipRecruiter'
+# Organizations approved during the 2026-10-18 discovery review.
+- id: apache-software-foundation
+  canonical_name: Apache Software Foundation
+  website_url: https://apache.org/
+  aliases:
+  - '@Apache'
+- id: namecheap
+  canonical_name: Namecheap
+  website_url: https://www.namecheap.com/
+  aliases: []
+- id: agibot
+  canonical_name: AgiBot
+  website_url: https://www.agibot.com/
+  aliases:
+  - '@AgiBot-World'
+- id: alibaba
+  canonical_name: Alibaba Group
+  website_url: https://www.alibabagroup.com/
+  aliases:
+  - '@alibaba'
+- id: cerebro-tech
+  canonical_name: Cerebro Tech
+  website_url: https://github.com/cerebrotech
+  aliases:
+  - '@cerebrotech'
+- id: containership
+  canonical_name: Containership
+  website_url: https://containership.io
+  aliases:
+  - '@containership'
+- id: eidu
+  canonical_name: EIDU
+  website_url: https://www.eidu.com/
+  aliases:
+  - '@EIDU'
+- id: flwls
+  canonical_name: FLWLS
+  website_url: https://github.com/flwls
+  aliases:
+  - '@flwls'
+- id: humane-intelligence
+  canonical_name: Humane Intelligence
+  website_url: https://humane-intelligence.org/
+  aliases:
+  - '@humane-intelligence'
+- id: northvolt
+  canonical_name: Northvolt
+  website_url: https://northvolt.com/
+  aliases:
+  - '@northvolt'
+- id: sahab-pardaz
+  canonical_name: Sahab Pardaz
+  website_url: https://sahab.ir/
+  aliases:
+  - '@sahabpardaz'
+- id: samsara
+  canonical_name: Samsara
+  website_url: https://www.samsara.com/
+  aliases:
+  - '@samsara-dev'
+- id: sharechat
+  canonical_name: ShareChat
+  website_url: https://sharechat.com/
+  aliases:
+  - '@ShareChat'
+- id: suse
+  canonical_name: SUSE
+  website_url: https://www.suse.com/
+  aliases:
+  - '@SUSE @Harvester'
+- id: tako-data
+  canonical_name: Tako Data
+  website_url: https://tako.com/
+  aliases:
+  - '@TakoData'
+- id: the-ocean-cleanup
+  canonical_name: The Ocean Cleanup
+  website_url: https://theoceancleanup.com/
+  aliases:
+  - '@TheOceanCleanup'
+- id: tleem
+  canonical_name: TLEEM
+  website_url: https://tleem.org/
+  aliases:
+  - '@TLEEM'
+- id: adt
+  canonical_name: ADT
+  website_url: https://www.adt.com/
+  aliases: []
+- id: adyen
+  canonical_name: Adyen
+  website_url: https://www.adyen.com/
+  aliases: []
+- id: apple
+  canonical_name: Apple
+  website_url: https://www.apple.com/
+  aliases: []
+- id: appliedai-institute
+  canonical_name: appliedAI Institute for Europe
+  website_url: https://www.appliedai-institute.de/en/
+  aliases:
+  - appliedAI Institute for Europe gGmbH
+- id: appwrite
+  canonical_name: Appwrite
+  website_url: https://appwrite.io/
+  aliases: []
+- id: artera
+  canonical_name: Artera
+  website_url: https://artera.ai/
+  aliases: []
+- id: astrus
+  canonical_name: Astrus
+  website_url: https://www.astrus.ai/
+  aliases: []
+- id: bangalore-institute-of-technology
+  canonical_name: Bangalore Institute of Technology
+  website_url: https://bit-bangalore.edu.in/
+  aliases: []
+- id: barcelona-supercomputing-center
+  canonical_name: Barcelona Supercomputing Center
+  website_url: https://www.bsc.es/
+  aliases:
+  - Barcelona Supercomputing Center @BSC-ES
+- id: bitdeer
+  canonical_name: Bitdeer
+  website_url: https://www.bitdeer.com/
+  aliases: []
+- id: bits-pilani
+  canonical_name: BITS Pilani
+  website_url: https://www.bits-pilani.ac.in/
+  aliases:
+  - Bits - Pilani Hyderabad Campus
+- id: black-forest-labs
+  canonical_name: Black Forest Labs
+  website_url: https://bfl.ai/
+  aliases:
+  - black-forest-labs
+- id: california-state-university
+  canonical_name: California State University
+  website_url: https://www.calstate.edu/
+  aliases: []
+- id: codewithbhavna
+  canonical_name: Codewithbhavna
+  website_url: https://github.com/codewithbhavna
+  aliases: []
+- id: concordia-university
+  canonical_name: Concordia University
+  website_url: https://www.concordia.ca/
+  aliases: []
+- id: cuspai
+  canonical_name: CuspAI
+  website_url: https://cusp.ai/
+  aliases: []
+- id: dartmouth-college
+  canonical_name: Dartmouth College
+  website_url: https://home.dartmouth.edu/
+  aliases:
+  - Dartmouth College, @dandi, @Debian, @DataLad, @neurodebian, @PyMVPA, @fail2ban
+- id: denklinie
+  canonical_name: Denklinie
+  website_url: https://www.denklinie.com/
+  aliases: []
+- id: embark-vet
+  canonical_name: Embark Vet
+  website_url: https://embarkvet.com/
+  aliases: []
+- id: equilibre-technologies
+  canonical_name: EquiLibre Technologies
+  website_url: https://equilibre.ai/
+  aliases:
+  - Equilibre Technologies
+- id: evenup
+  canonical_name: EvenUp
+  website_url: https://www.evenuplaw.com/
+  aliases:
+  - evenup-ai
+- id: g-research
+  canonical_name: G-Research
+  website_url: https://www.gresearch.com/
+  aliases:
+  - G-Research, Contributor (armada, testkube)
+- id: givebutter
+  canonical_name: Givebutter
+  website_url: https://givebutter.com/
+  aliases:
+  - Givebutter 🧈
+- id: hackerrank
+  canonical_name: HackerRank
+  website_url: https://www.hackerrank.com/
+  aliases: []
+- id: harvard-medical-school
+  canonical_name: Harvard Medical School
+  website_url: https://hms.harvard.edu/
+  aliases: []
+- id: hederadx
+  canonical_name: Hedera Dx
+  website_url: https://www.hederadx.com/
+  aliases:
+  - HederaDx
+- id: snorkel-ai
+  canonical_name: Snorkel AI
+  website_url: https://snorkel.ai/
+  aliases:
+  - https://snorkel.ai/
+- id: iiit-gwalior
+  canonical_name: IIIT Gwalior
+  website_url: https://www.iiitm.ac.in/
+  aliases: []
+- id: iiit-lucknow
+  canonical_name: IIIT Lucknow
+  website_url: https://iiitl.ac.in/
+  aliases: []
+- id: iit-bhu
+  canonical_name: IIT BHU
+  website_url: https://www.iitbhu.ac.in/
+  aliases:
+  - IIT (BHU), Varanasi
+- id: indiana-university
+  canonical_name: Indiana University
+  website_url: https://www.indiana.edu/
+  aliases:
+  - Indiana University Bloomington
+- id: its-engineering-college
+  canonical_name: ITS Engineering College
+  website_url: https://www.itsengg.edu.in/
+  aliases: []
+- id: johnson-and-johnson
+  canonical_name: Johnson & Johnson
+  website_url: https://www.jnj.com/
+  aliases: []
+- id: kdm-training
+  canonical_name: KDM Training
+  website_url: https://gnosis.cx/kdm
+  aliases: []
+- id: kiet
+  canonical_name: KIET Group of Institutions
+  website_url: https://www.kiet.edu/
+  aliases:
+  - KIET Group Of Institutions, Ghaziabad
+- id: lablup
+  canonical_name: Lablup
+  website_url: https://www.lablup.com/
+  aliases:
+  - Lablup Inc.
+- id: lg-electronics
+  canonical_name: LG Electronics
+  website_url: https://www.lg.com/
+  aliases: []
+- id: line
+  canonical_name: LINE
+  website_url: https://www.linecorp.com/en/
+  aliases: []
+- id: local-food-group
+  canonical_name: Local Food Group
+  website_url: https://www.localkitchens.com/
+  aliases: []
+- id: lockheed-martin
+  canonical_name: Lockheed Martin
+  website_url: https://www.lockheedmartin.com/
+  aliases: []
+- id: university-of-washington
+  canonical_name: University of Washington
+  website_url: https://www.washington.edu/
+  aliases:
+  - MacCoss Lab at University of Washington
+- id: mcg-health
+  canonical_name: MCG Health
+  website_url: https://www.mcg.com/
+  aliases: []
+- id: memverge
+  canonical_name: MemVerge
+  website_url: https://memverge.com/
+  aliases: []
+- id: metrans
+  canonical_name: Metrans
+  website_url: https://metrans.eu/
+  aliases:
+  - Metrans a.s.
+- id: nycu
+  canonical_name: National Yang Ming Chiao Tung University
+  website_url: https://www.nycu.edu.tw/nycu/en/
+  aliases:
+  - National Yung Ming Chiao Tung University
+- id: nextdoor
+  canonical_name: Nextdoor
+  website_url: https://nextdoor.com/
+  aliases:
+  - Nextdoor.com, Inc.
+- id: nokia
+  canonical_name: Nokia
+  website_url: https://www.nokia.com/
+  aliases: []
+- id: opta
+  canonical_name: Opta
+  website_url: https://docs.opta.dev/
+  aliases: []
+- id: prime-intellect
+  canonical_name: Prime Intellect
+  website_url: https://www.primeintellect.ai/
+  aliases:
+  - PrimeIntellect
+- id: rebellion-defense
+  canonical_name: Rebellion Defense
+  website_url: https://rebelliondefense.com/
+  aliases: []
+- id: ripple
+  canonical_name: Ripple
+  website_url: https://ripple.com/
+  aliases:
+  - Ripple Inc
+- id: rippling
+  canonical_name: Rippling
+  website_url: https://www.rippling.com/
+  aliases: []
+- id: sicpa
+  canonical_name: SICPA
+  website_url: https://www.sicpa.com/
+  aliases: []
+- id: tcs
+  canonical_name: Tata Consultancy Services
+  website_url: https://www.tcs.com/
+  aliases:
+  - TCS
+- id: hotosm
+  canonical_name: Humanitarian OpenStreetMap Team
+  website_url: https://www.hotosm.org/
+  aliases:
+  - Tech Lead @hotosm
+- id: thoughtworks
+  canonical_name: Thoughtworks
+  website_url: https://www.thoughtworks.com/
+  aliases: []
+- id: together-ai
+  canonical_name: Together AI
+  website_url: https://www.together.ai/
+  aliases:
+  - Together.AI
+- id: traceframe
+  canonical_name: TraceFrame
+  website_url: https://traceframe.ai/
+  aliases: []
+- id: truist
+  canonical_name: Truist
+  website_url: https://www.truist.com/
+  aliases: []
+- id: uc-san-diego
+  canonical_name: UC San Diego
+  website_url: https://ucsd.edu/
+  aliases: []
+- id: unscrambl
+  canonical_name: Unscrambl
+  website_url: https://unscrambl.com/
+  aliases:
+  - Unscrambl, Inc.
+- id: usu-software
+  canonical_name: USU Software
+  website_url: https://www.usu.ag/
+  aliases:
+  - USU Software AG
+- id: yahoo
+  canonical_name: Yahoo
+  website_url: https://www.yahooinc.com/
+  aliases:
+  - Yahoo - TWEC
+- id: xiamen-university
+  canonical_name: Xiamen University
+  website_url: https://en.xmu.edu.cn/
+  aliases:
+  - 厦门大学

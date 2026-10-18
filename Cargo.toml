@@ -1,0 +1,36 @@
+[workspace]
+resolver = "3"
+members = ["crates/pulse-core", "crates/pulse", "crates/pulse-web", "tools/pulse-seed"]
+# The seed tool imports an existing Parquet dataset once; regular builds skip it.
+default-members = ["crates/pulse-core", "crates/pulse", "crates/pulse-web"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/flyteorg/flyte-pulse"
+
+[workspace.dependencies]
+pulse-core = { path = "crates/pulse-core" }
+pulse = { path = "crates/pulse" }
+anyhow = "1.0.104"
+clap = { version = "4.6.7", features = ["derive", "env"] }
+flate2 = { version = "1.1.10", default-features = false, features = ["rust_backend"] }
+postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
+regex = "1.13.1"
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+serde_yaml_ng = "0.10.0"
+sha2 = "0.11.1"
+tempfile = "3.27.0"
+thiserror = "2.0.21"
+tokio = { version = "1.53.3", features = ["rt-multi-thread", "macros", "process", "time", "fs"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+# The browser module is downloaded on every visit; favor size over speed.
+[profile.release.package.pulse-web]
+opt-level = "s"
