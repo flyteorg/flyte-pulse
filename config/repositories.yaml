@@ -16,6 +16,10 @@ identity_rules:
   - provider: GITHUB
     login: web-flow
     kind: BOT
+  # Claude's commits are authored as the GitHub account `claude`, a User account.
+  - provider: GITHUB
+    login: claude
+    kind: AI
 # Each ACTIVE repository needs at least one target branch. Each tracked branch
 # is shown separately (for example, flyte main/v2 and master/v1). The optional
 # module is a grouping label; label is the branch's display name. Use INACTIVE
