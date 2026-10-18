@@ -9,13 +9,19 @@ version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/flyteorg/flyte-pulse"
+publish = false
 
 [workspace.dependencies]
-pulse-core = { path = "crates/pulse-core" }
+# Workspace crates.
 pulse = { path = "crates/pulse" }
+pulse-core = { path = "crates/pulse-core" }
+
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive", "env"] }
+console_error_panic_hook = "0.1.7"
 flate2 = { version = "1.1.10", default-features = false, features = ["rust_backend"] }
+js-sys = "0.3.106"
+parquet = { version = "60.0.0", default-features = false, features = ["zstd", "snap"] }
 postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
 regex = "1.13.1"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }
@@ -24,8 +30,9 @@ serde_json = "1.0.154"
 serde_yaml_ng = "0.10.0"
 sha2 = "0.11.1"
 tempfile = "3.27.0"
-thiserror = "2.0.21"
 tokio = { version = "1.53.3", features = ["rt-multi-thread", "macros", "process", "time", "fs"] }
+# Must match the wasm-bindgen CLI version in .github/workflows/sync.yml.
+wasm-bindgen = "=0.2.129"
 
 [profile.release]
 lto = true
