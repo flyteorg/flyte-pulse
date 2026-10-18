@@ -146,7 +146,7 @@ Workflows:
 
 Actions are pinned by commit SHA; jobs get write access only where they need it.
 Dependabot opens one grouped pull request per week for each of Rust, JS, and
-GitHub Actions.
+GitHub Actions, proposing only releases that are at least 7 days old.
 
 To add a repository, add it to `config/repositories.yaml`; the next sync makes a
 full clone and collects all of its pull requests. Company and affiliation changes

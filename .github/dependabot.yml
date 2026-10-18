@@ -1,9 +1,12 @@
 version: 2
 updates:
+  # Every ecosystem waits 7 days after a release before proposing it (cooldown).
   - package-ecosystem: cargo
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       rust:
         patterns: ["*"]
@@ -12,6 +15,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       js:
         patterns: ["*"]
@@ -20,6 +25,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
