@@ -32,9 +32,7 @@ on:
       - ".github/workflows/sync.yml"
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: pulse-sync
@@ -49,8 +47,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    permissions:
+      # Commit the state to the data branch and replace the release asset.
+      contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Check out the data branch
         env:
@@ -72,12 +73,14 @@ jobs:
             exit 1
           fi
 
-      - uses: dtolnay/rust-toolchain@stable
+      # Installs the toolchain and targets from rust-toolchain.toml and caches builds.
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
-          targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
+          # CI enforces warnings; a warning must not stop the daily data refresh.
+          build-warnings: warn
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
+          # Must match the wasm-bindgen crate version in Cargo.toml.
           tool: wasm-bindgen@0.2.129
       - name: Install wasm-opt
         run: sudo apt-get install -y --no-install-recommends binaryen
@@ -129,17 +132,19 @@ jobs:
       - name: Build the site
         run: scripts/build-site.sh "$STATE" dist
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: dist
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

@@ -104,9 +104,11 @@ scripts/build-site.sh state dist
 python3 -m http.server -d dist 8000   # http://localhost:8000
 ```
 
-`scripts/build-site.sh` needs the `wasm32-unknown-unknown` target and
-`wasm-bindgen-cli` matching the `wasm-bindgen` crate (`cargo install
-wasm-bindgen-cli --version 0.2.129`); `wasm-opt` (binaryen) is used when present.
+`rust-toolchain.toml` is the only place the Rust version is set; rustup installs
+that toolchain with the `wasm32-unknown-unknown` target on first use.
+`scripts/build-site.sh` also needs `wasm-bindgen-cli` matching the `wasm-bindgen`
+crate (`cargo install wasm-bindgen-cli --version 0.2.129 --locked`); `wasm-opt`
+(binaryen) is used when present.
 
 ### Seeding (one time)
 
@@ -136,7 +138,9 @@ Workflows:
   repositories (`reseed: owner/name ...`) or to deploy without syncing. Pushes to
   `main` that touch code, web, or config rebuild and deploy from the saved state.
 - `ci.yml` runs formatting, clippy, tests, the WebAssembly build, and a
-  JavaScript syntax check.
+  JavaScript syntax check with a read-only token.
+
+Actions are pinned by commit SHA; jobs get write access only where they need it.
 
 To add a repository, add it to `config/repositories.yaml`; the next sync makes a
 full clone and collects all of its pull requests. Company and affiliation changes
