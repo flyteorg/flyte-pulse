@@ -5,6 +5,7 @@ import { content, errorBox, formatStamp, page } from "./common.js";
 import { PulseLoading } from "./loading.js";
 import { mountOverview } from "./overview.js";
 import { currentRoute } from "./route.js";
+import { initTheme } from "./theme.js";
 
 const REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 let ready = false;
@@ -114,6 +115,7 @@ async function refresh() {
 }
 
 async function start() {
+  initTheme();
   window.addEventListener("hashchange", () => {
     window.scrollTo(0, 0);
     void render();
