@@ -138,7 +138,9 @@ requests incrementally while making a full Git clone of every repository.
 Workflows:
 
 - `sync.yml` runs daily at 02:17 UTC: sync, commit the state to `data`, replace
-  the release asset, build, and deploy Pages. Run it manually to reseed
+  the release asset, build, and deploy Pages. Each run's summary page reports what
+  the sync collected (per repository, with API usage) and the published site data
+  (`pulse sync --summary-file`, `pulse summary`). Run it manually to reseed
   repositories (`reseed: owner/name ...`) or to deploy without syncing. Pushes to
   `main` that touch code, web, or config rebuild and deploy from the saved state.
 - `ci.yml` runs formatting, clippy, tests, the WebAssembly build, ESLint, and
