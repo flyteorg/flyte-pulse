@@ -4,3 +4,4 @@
 *.state.json.gz
 pulse-state.json.gz
 .DS_Store
+/node_modules/
