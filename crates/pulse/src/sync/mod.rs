@@ -9,10 +9,11 @@ mod git;
 mod github;
 mod identity;
 mod links;
+mod report;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
 use pulse_core::state::{Commit, EmailIdentity, PullRequest, PullRequestCommit, Repository, State};
@@ -66,11 +67,15 @@ pub struct SyncArgs {
     /// Only sync OWNER/NAME (repeatable).
     #[arg(long, value_name = "OWNER/NAME")]
     pub only: Vec<String>,
+    /// Append a Markdown report to PATH, such as `$GITHUB_STEP_SUMMARY`.
+    #[arg(long, value_name = "PATH")]
+    pub summary_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Default)]
 struct RepoSummary {
     name: String,
+    repository_id: String,
     mode: &'static str,
     prs_scanned: usize,
     commits_from_git: usize,
@@ -81,6 +86,10 @@ struct RepoSummary {
     emails_looked_up: usize,
     api_requests: u64,
     api_points: u64,
+    new_pull_requests: usize,
+    merged_pull_requests: usize,
+    new_commits: usize,
+    seconds: u64,
 }
 
 struct RepoContext<'a> {
@@ -159,6 +168,7 @@ pub fn run(args: SyncArgs) -> Result<()> {
         .filter(|r| r.is_active() && (only.is_empty() || only.contains(&r.full_name().to_lowercase())))
         .collect();
 
+    let run_started = Instant::now();
     let mut summaries = Vec::new();
     let (mut failed, mut skipped) = (Vec::new(), Vec::new());
     let mut stopped = false;
@@ -177,8 +187,11 @@ pub fn run(args: SyncArgs) -> Result<()> {
         };
         eprintln!("==> {}", spec.full_name());
         let backup = state.clone();
+        let repository_started = Instant::now();
         match sync_repository(&mut state, &mut github, &context) {
-            Ok(summary) => {
+            Ok(mut summary) => {
+                summary.seconds = repository_started.elapsed().as_secs();
+                count_changes(&backup, &state, &mut summary);
                 summaries.push(summary);
                 state.generated_at = Some(context.started);
                 state.catalog_revision = catalog.revision.clone();
@@ -243,10 +256,48 @@ pub fn run(args: SyncArgs) -> Result<()> {
         state.pull_request_commits.len(),
         out.display()
     );
+    if let Some(path) = &args.summary_file {
+        let markdown = report::markdown(&report::SyncReport {
+            repositories: summaries.len() + failed.len() + skipped.len(),
+            summaries: &summaries,
+            failed: &failed,
+            skipped: &skipped,
+            requests: github.requests,
+            points: github.points,
+            remaining: github.remaining,
+            seconds: run_started.elapsed().as_secs(),
+            state: &state,
+        });
+        crate::report::append(path, &markdown)?;
+    }
     if summaries.is_empty() && !failed.is_empty() {
         bail!("every repository sync failed");
     }
     Ok(())
+}
+
+/// New and newly merged pull requests and new commits for one repository.
+fn count_changes(before: &State, after: &State, summary: &mut RepoSummary) {
+    let id = summary.repository_id.as_str();
+    let merged_before: HashMap<&str, bool> = before
+        .pull_requests
+        .iter()
+        .filter(|pr| pr.repository_id == id)
+        .map(|pr| (pr.provider_id.as_str(), pr.merged_at.is_some()))
+        .collect();
+    for pr in after.pull_requests.iter().filter(|pr| pr.repository_id == id) {
+        let previous = merged_before.get(pr.provider_id.as_str());
+        if previous.is_none() {
+            summary.new_pull_requests += 1;
+        }
+        if pr.merged_at.is_some() && previous != Some(&true) {
+            summary.merged_pull_requests += 1;
+        }
+    }
+    let commits_before: HashSet<&str> =
+        before.commits.iter().filter(|c| c.repository_id == id).map(|c| c.sha.as_str()).collect();
+    summary.new_commits =
+        after.commits.iter().filter(|c| c.repository_id == id && !commits_before.contains(c.sha.as_str())).count();
 }
 
 fn sync_repository(state: &mut State, github: &mut GitHub, ctx: &RepoContext<'_>) -> Result<RepoSummary> {
@@ -286,6 +337,7 @@ fn sync_repository(state: &mut State, github: &mut GitHub, ctx: &RepoContext<'_>
     let full_git = ctx.reseed || branch_changed || watermark.git_cursor.is_none();
     let mut summary = RepoSummary {
         name: spec.full_name(),
+        repository_id: repository_id.clone(),
         mode: if full_git { "full" } else { "shallow" },
         ..RepoSummary::default()
     };

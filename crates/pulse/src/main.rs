@@ -23,6 +23,29 @@ enum Command {
     Build(BuildArgs),
     /// Convert state between a .json.gz/.json file and a JSON-lines directory.
     Convert(ConvertArgs),
+    /// Print a Markdown report of a built snapshot (for the GitHub Actions job summary).
+    Summary(SummaryArgs),
+}
+
+#[derive(Args)]
+struct SummaryArgs {
+    /// Directory with meta.json and the snapshot, as written by `pulse build`.
+    #[arg(long, default_value = "dist/data")]
+    data: PathBuf,
+    /// Append the report to PATH, such as `$GITHUB_STEP_SUMMARY`, instead of printing it.
+    #[arg(long, value_name = "PATH")]
+    summary_file: Option<PathBuf>,
+}
+
+fn summary(args: SummaryArgs) -> Result<()> {
+    let markdown = pulse::report::snapshot_markdown(&args.data, pulse::report::today())?;
+    match &args.summary_file {
+        Some(path) => pulse::report::append(path, &markdown),
+        None => {
+            print!("{markdown}");
+            Ok(())
+        }
+    }
 }
 
 #[derive(Args)]
@@ -65,5 +88,6 @@ fn main() -> Result<()> {
         Command::Sync(args) => pulse::sync::run(args),
         Command::Build(args) => build(args),
         Command::Convert(args) => write_state(&args.to, &read_state(&args.from)?),
+        Command::Summary(args) => summary(args),
     }
 }
