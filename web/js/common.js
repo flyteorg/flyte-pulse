@@ -174,28 +174,25 @@ export function aiIdentityLinks(identities) {
   return identities.map((identity) => userLink(identity.id, identity.name)).join(", ");
 }
 
+// Chart colors are CSS variables (dashboard.css), so charts follow the light/dark theme.
+const CHART_COLOR_COUNT = 8;
+export const NEUTRAL_CHART_COLOR = "var(--chart-neutral)";
+
+export function chartColor(index) {
+  return `var(--chart-${(index % CHART_COLOR_COUNT) + 1})`;
+}
+
 export function contributionPie(
   title,
   rows,
   metric,
   { linkRepositories = true, linkCompanies = false, subtitle = "", controls = "" } = {},
 ) {
-  const palette = [
-    "#4bd4df",
-    "#728bff",
-    "#ffb86b",
-    "#68d9a2",
-    "#d78bff",
-    "#f17c9b",
-    "#a9c66b",
-    "#65a9ff",
-  ];
   const slices = rows
     .map((row, index) => ({
       ...row,
       value: Number(row[metric]) || 0,
-      color:
-        linkCompanies && row.id === "independent" ? "#8193a9" : palette[index % palette.length],
+      color: linkCompanies && row.id === "independent" ? NEUTRAL_CHART_COLOR : chartColor(index),
     }))
     .filter((row) => row.value > 0);
   const total = slices.reduce((sum, row) => sum + row.value, 0);
@@ -209,7 +206,7 @@ export function contributionPie(
   const circles = slices
     .map((row) => {
       const length = (row.value / total) * circumference;
-      const circle = `<circle cx="64" cy="64" r="${radius}" fill="none" stroke="${row.color}" stroke-width="24" stroke-dasharray="${length} ${circumference - length}" stroke-dashoffset="${-offset}" transform="rotate(-90 64 64)"><title>${escapeHtml(row.name)}: ${number.format(row.value)}</title></circle>`;
+      const circle = `<circle cx="64" cy="64" r="${radius}" fill="none" style="stroke:${row.color}" stroke-width="24" stroke-dasharray="${length} ${circumference - length}" stroke-dashoffset="${-offset}" transform="rotate(-90 64 64)"><title>${escapeHtml(row.name)}: ${number.format(row.value)}</title></circle>`;
       offset += length;
       return circle;
     })
@@ -226,7 +223,7 @@ export function contributionPie(
     .join("");
   return `<article class="panel page-section project-pie-panel">
     ${heading}
-    <div class="project-pie-content"><svg class="project-pie" width="112" height="112" style="width:112px;height:112px;max-width:112px;max-height:112px;display:block;flex:none" viewBox="0 0 128 128" role="img" aria-label="${escapeHtml(title)} breakdown">${circles}<text x="64" y="61" text-anchor="middle" fill="#edf4fb" style="font:700 17px system-ui">${number.format(total)}</text><text x="64" y="77" text-anchor="middle" fill="#91a3b9" style="font:10px system-ui">total</text></svg><ul class="pie-legend">${legend}</ul></div>
+    <div class="project-pie-content"><svg class="project-pie" width="112" height="112" style="width:112px;height:112px;max-width:112px;max-height:112px;display:block;flex:none" viewBox="0 0 128 128" role="img" aria-label="${escapeHtml(title)} breakdown">${circles}<text x="64" y="61" text-anchor="middle" class="pie-total">${number.format(total)}</text><text x="64" y="77" text-anchor="middle" class="pie-total-label">total</text></svg><ul class="pie-legend">${legend}</ul></div>
   </article>`;
 }
 

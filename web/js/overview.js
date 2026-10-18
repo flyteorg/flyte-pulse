@@ -1,21 +1,9 @@
 import { getJson, snapshotMeta } from "./api.js";
-import { formatStamp } from "./common.js";
+import { NEUTRAL_CHART_COLOR, chartColor, formatStamp } from "./common.js";
 import { PulseLoading } from "./loading.js";
 import { currentRoute, replaceParams } from "./route.js";
 
 const number = new Intl.NumberFormat();
-const repositoryPieColors = [
-  "#4bd4df",
-  "#ffb86b",
-  "#8298ff",
-  "#68d9a2",
-  "#dc8df0",
-  "#f17f94",
-  "#95b2cf",
-  "#d9ce6d",
-  "#5ca6df",
-  "#e89c6d",
-];
 
 // Render the overview into `root` and return a cleanup function for navigation away.
 export function mountOverview(root) {
@@ -403,12 +391,12 @@ export function mountOverview(root) {
     entries.forEach((repository, index) => {
       const color =
         prefix === "company" && repository.id === "independent"
-          ? "#8193a9"
-          : repositoryPieColors[index % repositoryPieColors.length];
+          ? NEUTRAL_CHART_COLOR
+          : chartColor(index);
       const sweep = (repository.value / total) * Math.PI * 2;
       let slice;
       if (sweep > Math.PI * 2 - 0.0001) {
-        slice = add("circle", { cx, cy, r: radius, fill: color });
+        slice = add("circle", { cx, cy, r: radius, style: `fill:${color}` });
       } else {
         const endAngle = angle + sweep;
         const startX = cx + radius * Math.cos(angle),
@@ -418,13 +406,12 @@ export function mountOverview(root) {
         const largeArc = sweep > Math.PI ? 1 : 0;
         slice = add("path", {
           d: `M ${cx} ${cy} L ${startX} ${startY} A ${radius} ${radius} 0 ${largeArc} 1 ${endX} ${endY} Z`,
-          fill: color,
+          style: `fill:${color}`,
         });
         angle = endAngle;
       }
       slice.setAttribute("aria-label", `${repository.name}: ${number.format(repository.value)}`);
-      slice.setAttribute("stroke", "#101c2d");
-      slice.setAttribute("stroke-width", "1.5");
+      slice.classList.add("pie-slice");
 
       const item = document.createElement("li");
       const key = document.createElement("span");
@@ -444,7 +431,7 @@ export function mountOverview(root) {
       item.append(key, name, value);
       legend.append(item);
     });
-    add("circle", { cx, cy, r: innerRadius, fill: "#101c2d" });
+    add("circle", { cx, cy, r: innerRadius, class: "pie-hole" });
     const centerValue = add("text", {
       x: cx,
       y: cy - 2,

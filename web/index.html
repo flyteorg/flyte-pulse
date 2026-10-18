@@ -1,34 +1,97 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#08111f" />
+    <meta name="theme-color" content="#050310" />
     <title>Flyte Pulse</title>
-    <link rel="icon" href="data:," />
+    <link rel="icon" href="assets/flyte-logo.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Instrument+Sans:wght@400;500;600;700&amp;display=swap"
+    />
     <link rel="stylesheet" href="assets/dashboard.css" />
+    <script>
+      // Apply a saved light theme before the first paint; dark is the default.
+      try {
+        if (localStorage.getItem("pulse-theme") === "light") {
+          document.documentElement.dataset.theme = "light";
+        }
+      } catch {
+        // Storage can be unavailable (private windows, blocked site data).
+      }
+    </script>
     <script type="module" src="js/app.js"></script>
   </head>
   <body>
+    <header class="site-header">
+      <div class="site-header-inner">
+        <a class="brand" href="#/" aria-label="Flyte Pulse home"
+          ><svg class="brand-logo" viewBox="0 0 44 40" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M10.7325 20.4388C11.6982 18.1438 12.1898 15.7827 12.6324 13.4131C13.387 9.37307 13.8972 5.30623 13.7258 1.18364C13.6932 0.40028 13.9138 0.109059 14.7575 0.188746C17.0421 0.404513 19.3074 0.665615 21.3612 1.79067C21.9048 2.0885 22.382 1.9286 22.9017 1.78205C26.8327 0.67369 30.8187 -0.0779745 34.9253 0.00645783C37.6237 0.0619366 40.2407 0.49755 42.7297 1.6147C43.5435 1.97993 43.845 2.49922 43.77 3.36313C43.5683 5.68772 42.639 7.77122 41.6739 9.84286C41.4101 10.4092 41.0266 10.0835 40.7011 9.87791C37.4258 7.80932 33.9086 6.24425 30.286 4.90798C27.7148 3.95952 25.1144 3.09629 22.3025 2.66542C23.1702 3.52404 24.0071 4.41672 24.911 5.23541C28.913 8.86013 33.0836 12.2613 37.9038 14.771C38.4356 15.048 38.5646 15.3318 38.1997 15.85C36.8598 17.7528 35.489 19.6321 33.4785 20.8918C32.8806 21.2665 32.7376 21.7994 32.5894 22.3911C31.4367 26.9944 29.762 31.3745 27.0155 35.2878C25.8812 36.9384 24.4777 38.3869 22.8637 39.5728C22.1292 40.1043 21.4749 40.1669 20.7303 39.6072C18.9337 38.2569 17.5829 36.5179 16.3305 34.6852C15.9864 34.1815 16.2307 33.9058 16.6734 33.678C20.2832 31.8213 23.4905 29.3836 26.5822 26.7839C28.484 25.2109 30.2824 23.5168 31.966 21.7121C31.611 21.3738 31.3066 21.6228 31.0411 21.6936C25.0841 23.2818 19.3462 25.4144 14.0708 28.6582C13.3497 29.1016 12.9663 29.0464 12.6148 28.2355C11.7169 26.1637 10.8845 24.0742 10.7443 21.7951C10.6984 21.0484 10.2419 20.6461 9.78687 20.2039C6.53928 17.048 3.71473 13.5729 1.74933 9.46218C0.789341 7.45433 0.08806 5.37105 0.00218354 3.10907C-0.0318759 2.21194 0.331824 1.71144 1.14182 1.41953C3.02246 0.738513 4.98966 0.32577 6.98543 0.193467C7.7856 0.140088 7.98221 0.421906 7.96127 1.14386C7.81334 6.24361 8.59293 11.2413 9.68012 16.2002C9.99177 17.6216 10.3796 19.0264 10.7325 20.4388ZM21.9306 3.81479C20.6244 10.5823 16.5199 15.6393 11.8931 20.4027C18.2097 17.8236 24.5067 18.9802 30.8619 20.2355C25.9858 15.7476 23.776 9.9179 21.9306 3.81479Z"
+            /></svg
+          ><span class="brand-name">flyte <span>pulse</span></span></a
+        >
+        <nav class="site-nav" id="site-nav" aria-label="Dashboard pages">
+          <a href="#/">Overview</a>
+          <a href="#/repositories">Repositories</a>
+          <a href="#/users">Contributors</a>
+          <a href="#/companies">Companies</a>
+          <a href="#/ai-activity">AI Activity</a>
+        </nav>
+        <div class="header-actions">
+          <button
+            type="button"
+            class="icon-button"
+            id="theme-toggle"
+            aria-label="Switch to light theme"
+            ><svg
+              class="theme-icon-dark"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg
+            ><svg
+              class="theme-icon-light"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="4" />
+              <path
+                d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
+              /></svg
+          ></button>
+          <a class="pill-button github" href="https://github.com/flyteorg/flyte-pulse"
+            ><svg viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+              /></svg
+            >GitHub</a
+          >
+          <a class="pill-button primary" href="https://flyte.org/">flyte.org</a>
+        </div>
+      </div>
+    </header>
     <main class="shell" id="shell">
-      <header class="top">
-        <a class="brand brand-link" href="#/" aria-label="Flyte Pulse home"
-          ><div class="mark">P</div
-          ><div
-            ><div class="eyebrow">Open source community</div><h1 class="title">Flyte Pulse</h1></div
-          ></a
-        >
-        <div class="top-right"
-          ><div class="stamp" id="page-stamp">Loading activity snapshot…</div></div
-        >
-      </header>
-      <nav class="site-nav" id="site-nav" aria-label="Dashboard pages">
-        <a href="#/">Overview</a>
-        <a href="#/repositories">Repositories</a>
-        <a href="#/users">Contributors</a>
-        <a href="#/companies">Companies</a>
-        <a href="#/ai-activity">AI Activity</a>
-      </nav>
+      <div class="page-meta"
+        ><div class="eyebrow">Open source community · Flyte repositories</div
+        ><div class="stamp" id="page-stamp">Loading activity snapshot…</div></div
+      >
       <div class="error" id="error" role="alert"></div>
       <div class="page-loading-status" id="page-loading-status" hidden></div>
       <div id="page-content" aria-busy="true">
@@ -40,11 +103,39 @@
           ></section
         >
       </div>
-      <footer class="footer"
-        ><span id="artifact-info">Reading published activity</span
-        ><span>Source: GitHub activity · Git history</span></footer
-      >
     </main>
+    <footer class="site-footer">
+      <div class="site-footer-inner">
+        <div class="footer-brand">
+          <a class="brand" href="#/" aria-label="Flyte Pulse home"
+            ><svg class="brand-logo" viewBox="0 0 44 40" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M10.7325 20.4388C11.6982 18.1438 12.1898 15.7827 12.6324 13.4131C13.387 9.37307 13.8972 5.30623 13.7258 1.18364C13.6932 0.40028 13.9138 0.109059 14.7575 0.188746C17.0421 0.404513 19.3074 0.665615 21.3612 1.79067C21.9048 2.0885 22.382 1.9286 22.9017 1.78205C26.8327 0.67369 30.8187 -0.0779745 34.9253 0.00645783C37.6237 0.0619366 40.2407 0.49755 42.7297 1.6147C43.5435 1.97993 43.845 2.49922 43.77 3.36313C43.5683 5.68772 42.639 7.77122 41.6739 9.84286C41.4101 10.4092 41.0266 10.0835 40.7011 9.87791C37.4258 7.80932 33.9086 6.24425 30.286 4.90798C27.7148 3.95952 25.1144 3.09629 22.3025 2.66542C23.1702 3.52404 24.0071 4.41672 24.911 5.23541C28.913 8.86013 33.0836 12.2613 37.9038 14.771C38.4356 15.048 38.5646 15.3318 38.1997 15.85C36.8598 17.7528 35.489 19.6321 33.4785 20.8918C32.8806 21.2665 32.7376 21.7994 32.5894 22.3911C31.4367 26.9944 29.762 31.3745 27.0155 35.2878C25.8812 36.9384 24.4777 38.3869 22.8637 39.5728C22.1292 40.1043 21.4749 40.1669 20.7303 39.6072C18.9337 38.2569 17.5829 36.5179 16.3305 34.6852C15.9864 34.1815 16.2307 33.9058 16.6734 33.678C20.2832 31.8213 23.4905 29.3836 26.5822 26.7839C28.484 25.2109 30.2824 23.5168 31.966 21.7121C31.611 21.3738 31.3066 21.6228 31.0411 21.6936C25.0841 23.2818 19.3462 25.4144 14.0708 28.6582C13.3497 29.1016 12.9663 29.0464 12.6148 28.2355C11.7169 26.1637 10.8845 24.0742 10.7443 21.7951C10.6984 21.0484 10.2419 20.6461 9.78687 20.2039C6.53928 17.048 3.71473 13.5729 1.74933 9.46218C0.789341 7.45433 0.08806 5.37105 0.00218354 3.10907C-0.0318759 2.21194 0.331824 1.71144 1.14182 1.41953C3.02246 0.738513 4.98966 0.32577 6.98543 0.193467C7.7856 0.140088 7.98221 0.421906 7.96127 1.14386C7.81334 6.24361 8.59293 11.2413 9.68012 16.2002C9.99177 17.6216 10.3796 19.0264 10.7325 20.4388ZM21.9306 3.81479C20.6244 10.5823 16.5199 15.6393 11.8931 20.4027C18.2097 17.8236 24.5067 18.9802 30.8619 20.2355C25.9858 15.7476 23.776 9.9179 21.9306 3.81479Z"
+              /></svg
+            ><span class="brand-name">flyte <span>pulse</span></span></a
+          >
+          <p>Community activity across the Flyte repositories, from GitHub and Git history.</p>
+          <p class="footer-meta" id="artifact-info">Reading published activity</p>
+        </div>
+        <div class="footer-links">
+          <div class="footer-heading">Flyte</div>
+          <a href="https://flyte.org/">flyte.org</a>
+          <a href="https://www.union.ai/docs/v2/flyte/">Docs</a>
+          <a href="https://github.com/flyteorg/flyte">GitHub</a>
+        </div>
+        <div class="footer-links">
+          <div class="footer-heading">Community</div>
+          <a href="https://slack.flyte.org/">Slack</a>
+          <a href="https://x.com/flyteorg">X</a>
+        </div>
+        <div class="footer-links">
+          <div class="footer-heading">Pulse</div>
+          <a href="https://github.com/flyteorg/flyte-pulse">Source code</a>
+          <a href="https://github.com/flyteorg/flyte-pulse/tree/data">Collected data</a>
+        </div>
+      </div>
+    </footer>
     <template id="overview-template">
       <section class="filters" aria-label="Dashboard filters">
         <div class="field"
@@ -66,12 +157,12 @@
         <div class="spacer"></div><div class="status" id="status">Reading published activity</div>
       </section>
       <section class="cards" id="summary-cards" aria-label="Activity summary">
-        <article class="card" style="--glow: #1d807b"
+        <article class="card"
           ><div class="card-label">Active human contributors</div
           ><div class="card-value" id="contributors">—</div
           ><div class="card-note">GitHub identities classified as human</div></article
         >
-        <article class="card" style="--glow: #5eae81"
+        <article class="card"
           ><div class="card-label">New human contributors</div
           ><div class="card-value"
             ><a
@@ -82,16 +173,16 @@
             ></div
           ><div class="card-note">first recorded activity in selected range</div></article
         >
-        <article class="card" style="--glow: #496dd0"
+        <article class="card"
           ><div class="card-label">Pull requests merged</div
           ><div class="card-value" id="merged">—</div
           ><div class="card-note">merged in selected range</div></article
         >
-        <article class="card" style="--glow: #1598a5"
+        <article class="card"
           ><div class="card-label">Commits</div><div class="card-value" id="commits">—</div
           ><div class="card-note">associated with tracked pull requests</div></article
         >
-        <article class="card" style="--glow: #b76f34"
+        <article class="card"
           ><div class="card-label">Pull requests opened</div
           ><div class="card-value" id="opened">—</div
           ><div class="card-note">opened in selected range</div></article

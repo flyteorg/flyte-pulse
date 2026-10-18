@@ -3,6 +3,7 @@ import {
   activityPanel,
   aiContributorLink,
   aiIdentityLinks,
+  chartColor,
   content,
   contributionPie,
   errorBox,
@@ -761,21 +762,11 @@ function aiModelSharePanel() {
 }
 
 function drawAIModelShare(models, metric) {
-  const palette = [
-    "#4bd4df",
-    "#728bff",
-    "#ffb86b",
-    "#68d9a2",
-    "#d78bff",
-    "#f17c9b",
-    "#a9c66b",
-    "#65a9ff",
-  ];
   const slices = models
     .map((model, index) => ({
       ...model,
       value: Number(model[metric]) || 0,
-      color: palette[index % palette.length],
+      color: chartColor(index),
     }))
     .filter((model) => model.value > 0);
   const total = slices.reduce((sum, model) => sum + model.value, 0);
@@ -802,7 +793,7 @@ function drawAIModelShare(models, metric) {
   const circles = slices
     .map((model) => {
       const length = (model.value / total) * circumference;
-      const circle = `<circle cx="64" cy="64" r="${radius}" fill="none" stroke="${model.color}" stroke-width="24" stroke-dasharray="${length} ${circumference - length}" stroke-dashoffset="${-offset}" transform="rotate(-90 64 64)"><title>${escapeHtml(model.provider)} ${escapeHtml(model.model || "")}: ${number.format(model.value)}</title></circle>`;
+      const circle = `<circle cx="64" cy="64" r="${radius}" fill="none" style="stroke:${model.color}" stroke-width="24" stroke-dasharray="${length} ${circumference - length}" stroke-dashoffset="${-offset}" transform="rotate(-90 64 64)"><title>${escapeHtml(model.provider)} ${escapeHtml(model.model || "")}: ${number.format(model.value)}</title></circle>`;
       offset += length;
       return circle;
     })
