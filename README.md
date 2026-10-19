@@ -154,6 +154,43 @@ To add a repository, add it to `config/repositories.yaml`; the next sync makes a
 full clone and collects all of its pull requests. Company and affiliation changes
 take effect on the next build; no resync is needed.
 
+## Company and affiliation discovery
+
+After each sync, `pulse discover --apply` proposes updates to `companies.yaml` and
+`affiliations.yaml`, and `scripts/discovery-pr.sh` opens or updates the
+`bot/company-discovery` pull request with the evidence. Merging it approves the
+changes. The signals are:
+
+- public profile company values, refreshed weekly and kept as first-seen and
+  last-seen runs, so a change is dated within a week of happening;
+- public organization memberships, matched through `@org` company aliases;
+- corporate commit email domains read from Git (free-mail, noreply, placeholder,
+  and alumni domains are dropped; only the domain is stored, never the address),
+  matched through a company's `domains` or its website.
+
+From these it proposes email domains and organization aliases for known companies,
+new companies (from a single `@org` named in a profile, or an organization whose
+website is an email domain several people use), affiliations for contributors
+without one, affiliation changes (the old period ends when the new value was first
+seen), and earlier affiliations from a clean switch of email domains. Anything
+ambiguous, such as several companies in one profile or a conflict with a curated
+mapping, is listed for a person instead. Values in `config/discovery.yaml` are
+never proposed again.
+
+The `main` ruleset requests a Copilot review on every push, and the workflow posts
+an `@Copilot` comment asking it to verify company names and websites, that each
+account is a real person, and that the evidence supports each affiliation. Copilot
+acts on mentions from users with Copilot access, so set a `PULSE_COPILOT_TOKEN`
+secret (a user token) for that. Pull requests opened with the workflow token do not
+trigger CI, so the script dispatches `ci.yml` on the branch for the required checks.
+Once someone else pushes to the branch, the workflow stops updating it until it is
+merged or closed. Run the workflow with `full_git` once to backfill email domains for
+history collected before this feature.
+
+New contributors whose login, name, or commit email contains "bot" are classified
+as bots, unless they have a curated affiliation; existing accounts like that are
+listed for review. `identity_rules` always win.
+
 ## License
 
 Apache License 2.0, like the other Flyte repositories. See [LICENSE](LICENSE).

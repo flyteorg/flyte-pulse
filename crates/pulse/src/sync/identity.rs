@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use pulse_core::state::{CompanyObservation, Contributor};
+use pulse_core::state::{CompanyObservation, Contributor, OrganizationObservation};
 use pulse_core::time::Ts;
 use sha2::{Digest, Sha256};
 
@@ -15,6 +15,72 @@ pub fn email_hash(email: &str) -> String {
         return String::new();
     }
     hex(&Sha256::digest(normalized.as_bytes()))[..32].to_string()
+}
+
+/// Free email providers: their domains say nothing about an employer.
+const FREE_MAIL_DOMAINS: &[&str] = &[
+    "126.com",
+    "163.com",
+    "aol.com",
+    "fastmail.com",
+    "foxmail.com",
+    "gmail.com",
+    "gmx.com",
+    "gmx.de",
+    "gmx.net",
+    "googlemail.com",
+    "hey.com",
+    "hotmail.com",
+    "icloud.com",
+    "live.com",
+    "mac.com",
+    "mail.com",
+    "mail.ru",
+    "me.com",
+    "msn.com",
+    "naver.com",
+    "outlook.com",
+    "pm.me",
+    "proton.me",
+    "protonmail.com",
+    "qq.com",
+    "sina.com",
+    "tutanota.com",
+    "web.de",
+    "yahoo.com",
+    "yandex.com",
+    "yandex.ru",
+    "ymail.com",
+    "zoho.com",
+];
+
+/// The lowercased domain of a corporate email address, or empty for free-mail,
+/// noreply, and malformed addresses. Only this domain is stored, never the address.
+pub fn corporate_domain(email: &str) -> String {
+    let Some((local, domain)) = email.trim().rsplit_once('@') else {
+        return String::new();
+    };
+    let domain = domain.trim_end_matches('.').to_lowercase();
+    let free = FREE_MAIL_DOMAINS.iter().any(|d| domain == *d)
+        || domain.starts_with("yahoo.")
+        || domain.starts_with("hotmail.")
+        || domain.starts_with("outlook.")
+        || domain.starts_with("live.");
+    let noreply = domain == "github.com"
+        || domain.ends_with(".github.com")
+        || domain.ends_with("noreply.github.com")
+        || local.to_lowercase().contains("noreply")
+        || domain == "localhost"
+        || domain.ends_with(".local")
+        || domain.ends_with(".localdomain");
+    // Placeholder and alumni addresses say nothing about an employer.
+    let placeholder = ["example.com", "example.org", "example.net"].contains(&domain.as_str())
+        || [".test", ".invalid", ".example"].iter().any(|suffix| domain.ends_with(suffix))
+        || domain.split('.').any(|label| label == "alumni" || label == "alum");
+    if local.is_empty() || free || noreply || placeholder || !domain.contains('.') {
+        return String::new();
+    }
+    domain
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -51,6 +117,8 @@ pub struct Account {
     pub name: Option<String>,
     pub company: Option<String>,
     pub url: Option<String>,
+    /// Public organization logins, only from full profile lookups.
+    pub organizations: Option<Vec<String>>,
 }
 
 impl Account {
@@ -85,6 +153,8 @@ impl Account {
             identity_kind_source,
             profile_name_checked: !name.is_empty(),
             profile_company_history: Vec::new(),
+            organizations: Vec::new(),
+            organization_history: Vec::new(),
         }
     }
 }
@@ -162,12 +232,37 @@ pub fn apply_profile(row: &mut Contributor, profile: &Account, observed_at: Ts) 
         && row.profile_name_checked
         && let Some(previous) = row.profile_observed_at
     {
-        row.profile_company_history
-            .push(CompanyObservation { company: row.profile_company.clone(), observed_at: Some(previous) });
+        row.profile_company_history.push(CompanyObservation {
+            company: row.profile_company.clone(),
+            observed_at: Some(previous),
+            last_observed_at: Some(previous),
+        });
     }
     let company = profile.company.as_deref().unwrap_or("").trim().to_string();
-    row.profile_company_history.push(CompanyObservation { company: company.clone(), observed_at: Some(observed_at) });
+    // Keep runs of identical values: extend the last run or start a new one.
+    match row.profile_company_history.last_mut() {
+        Some(last) if last.company == company => last.last_observed_at = Some(observed_at),
+        _ => row.profile_company_history.push(CompanyObservation {
+            company: company.clone(),
+            observed_at: Some(observed_at),
+            last_observed_at: Some(observed_at),
+        }),
+    }
     row.profile_company = company;
+    if let Some(organizations) = &profile.organizations {
+        let mut organizations: Vec<String> = organizations.iter().map(|o| o.to_lowercase()).collect();
+        organizations.sort();
+        organizations.dedup();
+        match row.organization_history.last_mut() {
+            Some(last) if last.organizations == organizations => last.last_observed_at = Some(observed_at),
+            _ => row.organization_history.push(OrganizationObservation {
+                organizations: organizations.clone(),
+                observed_at: Some(observed_at),
+                last_observed_at: Some(observed_at),
+            }),
+        }
+        row.organizations = organizations;
+    }
     row.profile_observed_at = Some(observed_at);
     row.profile_name_checked = true;
 }
@@ -236,6 +331,7 @@ mod tests {
             name: Some("Ada".into()),
             company: None,
             url: Some("https://github.com/ada".into()),
+            organizations: Some(vec!["FlyteOrg".into()]),
         };
         apply_profile(&mut contributor, &profile, Ts(200));
         assert_eq!(contributor.display_name, "Ada");
@@ -243,5 +339,25 @@ mod tests {
         let history: Vec<_> =
             contributor.profile_company_history.iter().map(|o| (o.company.as_str(), o.observed_at)).collect();
         assert_eq!(history, vec![("Old Co", Some(Ts(100))), ("", Some(Ts(200)))]);
+        assert_eq!(contributor.organizations, vec!["flyteorg"]);
+        // An unchanged value extends the last run instead of adding an observation.
+        apply_profile(&mut contributor, &profile, Ts(300));
+        assert_eq!(contributor.profile_company_history.len(), 2);
+        assert_eq!(contributor.profile_company_history[1].last_observed_at, Some(Ts(300)));
+        assert_eq!(contributor.organization_history.len(), 1);
+        assert_eq!(contributor.organization_history[0].last_observed_at, Some(Ts(300)));
+    }
+
+    #[test]
+    fn corporate_domains_only() {
+        assert_eq!(corporate_domain("Jane.Doe@Union.ai"), "union.ai");
+        assert_eq!(corporate_domain("jane@gmail.com"), "");
+        assert_eq!(corporate_domain("jane@yahoo.co.uk"), "");
+        assert_eq!(corporate_domain("1+jane@users.noreply.github.com"), "");
+        assert_eq!(corporate_domain("noreply@anthropic.com"), "");
+        assert_eq!(corporate_domain("root@localhost"), "");
+        assert_eq!(corporate_domain("not-an-email"), "");
+        assert_eq!(corporate_domain("jane@alumni.bits-pilani.ac.in"), "");
+        assert_eq!(corporate_domain("jane@example.com"), "");
     }
 }

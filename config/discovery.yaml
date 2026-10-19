@@ -1,0 +1,31 @@
+# Company discovery settings, maintained through PRs. The daily workflow proposes
+# new companies, affiliations, and affiliation changes in a pull request; values
+# listed here are never proposed again.
+#
+# profile_companies: exact public profile company values (case and repeated
+#   whitespace ignored) that do not name an employer.
+# organizations: GitHub organizations whose membership says nothing about an
+#   employer, such as open source projects.
+# domains: commit email domains that do not identify an employer.
+# users: GitHub usernames whose affiliations are maintained by hand only.
+ignore:
+  profile_companies:
+    - Student
+    - Individual
+    - Independent
+    - Independent Consultant
+    - Freelance
+    - Freelancer
+    - Self-employed
+    - None
+    - N/A
+  organizations:
+    - flyteorg
+  domains:
+    # Personal committer addresses of the Apache Software Foundation.
+    - apache.org
+    # Project addresses, not employers.
+    - flyte.org
+    # A common misspelling of gmail.com.
+    - gmai.com
+  users: []

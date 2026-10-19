@@ -294,7 +294,7 @@ query($owner:String!,$name:String!,$base:String!,$after:String,$first:Int!){
             let mut fields = String::new();
             for (index, login) in batch.iter().enumerate() {
                 fields.push_str(&format!(
-                    "u{index}:user(login:{}){{databaseId login name company url}}\n",
+                    "u{index}:user(login:{}){{databaseId login name company url organizations(first:50){{nodes{{login}}}}}}\n",
                     serde_json::to_string(login)?
                 ));
             }
@@ -303,6 +303,43 @@ query($owner:String!,$name:String!,$base:String!,$after:String,$first:Int!){
             response.check(true)?;
             for (index, login) in batch.iter().enumerate() {
                 result.insert(login.clone(), user_account(&response.data[format!("u{index}")]));
+            }
+        }
+        Ok(result)
+    }
+}
+
+/// Public details of a GitHub organization.
+#[derive(Clone, Debug, Default)]
+pub struct Organization {
+    pub login: String,
+    pub name: String,
+    pub website_url: String,
+}
+
+impl GitHub {
+    /// Organizations by login; `None` when the login is not an organization.
+    pub fn organizations(&mut self, logins: &[String]) -> Result<HashMap<String, Option<Organization>>> {
+        let mut result = HashMap::new();
+        for batch in logins.chunks(USERS_PER_QUERY) {
+            let mut fields = String::new();
+            for (index, login) in batch.iter().enumerate() {
+                fields.push_str(&format!(
+                    "o{index}:organization(login:{}){{login name websiteUrl}}\n",
+                    serde_json::to_string(login)?
+                ));
+            }
+            let query = format!("query{{rateLimit{{cost remaining resetAt}}\n{fields}}}");
+            let response = self.query(&query, json!({}))?;
+            response.check(true)?;
+            for (index, login) in batch.iter().enumerate() {
+                let node = &response.data[format!("o{index}")];
+                let organization = node["login"].as_str().map(|found| Organization {
+                    login: found.to_string(),
+                    name: node["name"].as_str().unwrap_or_default().to_string(),
+                    website_url: node["websiteUrl"].as_str().unwrap_or_default().to_string(),
+                });
+                result.insert(login.clone(), organization);
             }
         }
         Ok(result)
@@ -318,6 +355,9 @@ fn user_account(user: &Value) -> Option<Account> {
         name: user["name"].as_str().map(str::to_string),
         company: user["company"].as_str().map(str::to_string),
         url: user["url"].as_str().map(str::to_string),
+        organizations: user["organizations"]["nodes"]
+            .as_array()
+            .map(|nodes| nodes.iter().filter_map(|node| node["login"].as_str().map(str::to_string)).collect()),
     })
 }
 
@@ -381,6 +421,7 @@ impl PullRequestNode {
             name: author.name.clone(),
             company: author.company.clone(),
             url: author.url.clone(),
+            organizations: None,
         })
     }
 }

@@ -279,8 +279,6 @@ affiliations:
   company_id: derapi
 - username: slai
   company_id: monzo
-- username: snyk-bot
-  company_id: snyk
 - username: songyang-li
   company_id: linkedin
 - username: Sovietaced

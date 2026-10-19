@@ -6,7 +6,7 @@
 //! cursor gets a full clone; later runs fetch shallowly from the cursor.
 
 mod git;
-mod github;
+pub(crate) mod github;
 mod identity;
 mod links;
 mod report;
@@ -19,17 +19,17 @@ use anyhow::{Context, Result, bail};
 use pulse_core::state::{Commit, EmailIdentity, PullRequest, PullRequestCommit, Repository, State};
 use pulse_core::time::{Ts, format_timestamp, parse_timestamp};
 
-use crate::config::{Catalog, RepositorySpec, apply_identity_rules, load_catalog};
+use crate::config::{Catalog, RepositorySpec, apply_identity_rules, bot_email, bot_name, load_catalog, mark_bot};
 use crate::state_io::{read_state_or_default, write_state};
 use git::{GitCommit, GitRepo, branch_refspec, pull_refspec};
 use github::{GitHub, PullRequestNode, WaitBudgetExhausted};
-use identity::{Account, Noreply, apply_profile, email_hash, parse_noreply, upsert_contributor};
+use identity::{Account, Noreply, apply_profile, corporate_domain, email_hash, parse_noreply, upsert_contributor};
 use links::{LinkInputs, plan_links, rev_list_args};
 
 const DAY: i64 = 86_400;
 /// Re-read pull requests updated shortly before the previous scan started.
 const PR_OVERLAP_SECONDS: i64 = 600;
-const PROFILE_REFRESH_SECONDS: i64 = 90 * DAY;
+const PROFILE_REFRESH_SECONDS: i64 = 7 * DAY;
 /// Emails without a GitHub account are looked up again after this long.
 const EMAIL_RECHECK_SECONDS: i64 = 30 * DAY;
 /// Total time one sync may spend waiting for GitHub rate limits.
@@ -67,6 +67,10 @@ pub struct SyncArgs {
     /// Only sync OWNER/NAME (repeatable).
     #[arg(long, value_name = "OWNER/NAME")]
     pub only: Vec<String>,
+    /// Re-read the full Git history of every repository (a full clone) without
+    /// discarding saved data, for example to backfill new commit fields.
+    #[arg(long)]
+    pub full_git: bool,
     /// Append a Markdown report to PATH, such as `$GITHUB_STEP_SUMMARY`.
     #[arg(long, value_name = "PATH")]
     pub summary_file: Option<PathBuf>,
@@ -90,6 +94,8 @@ struct RepoSummary {
     merged_pull_requests: usize,
     new_commits: usize,
     seconds: u64,
+    /// Accounts that authored commits from email addresses containing "bot".
+    bot_email_authors: Vec<String>,
 }
 
 struct RepoContext<'a> {
@@ -103,6 +109,11 @@ struct RepoContext<'a> {
 
 fn now() -> Ts {
     Ts(SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0))
+}
+
+/// A GitHub GraphQL client using the same token and wait budget as `pulse sync`.
+pub(crate) fn github_client() -> Result<GitHub> {
+    GitHub::new(github_token()?, MAX_RATE_LIMIT_WAIT)
 }
 
 fn github_token() -> Result<String> {
@@ -169,6 +180,8 @@ pub fn run(args: SyncArgs) -> Result<()> {
         .collect();
 
     let run_started = Instant::now();
+    let known: HashSet<String> = state.contributors.iter().map(|c| c.id.clone()).collect();
+    let curated = curated_identities(&args.config_dir);
     let mut summaries = Vec::new();
     let (mut failed, mut skipped) = (Vec::new(), Vec::new());
     let mut stopped = false;
@@ -218,6 +231,8 @@ pub fn run(args: SyncArgs) -> Result<()> {
             Err(error) => println!("::warning::Profile refresh incomplete: {error:#}"),
         }
     }
+    let bot_emails: HashSet<String> = summaries.iter().flat_map(|s| s.bot_email_authors.iter().cloned()).collect();
+    mark_new_bots(&mut state, &known, &curated, &bot_emails);
     apply_identity_rules(&mut state.contributors, &catalog.identity_rules);
     state.generated_at = Some(now());
     state.catalog_revision = catalog.revision.clone();
@@ -274,6 +289,64 @@ pub fn run(args: SyncArgs) -> Result<()> {
         bail!("every repository sync failed");
     }
     Ok(())
+}
+
+/// Accounts behind commits authored from email addresses containing "bot", such as
+/// `snyk-bot@snyk.io`. Only the classification is kept, never the address.
+fn bot_email_authors(state: &State, repository_id: &str, commits: &[&GitCommit]) -> Vec<String> {
+    let bot_shas: HashSet<&str> =
+        commits.iter().filter(|c| bot_email(&c.author_email)).map(|c| c.sha.as_str()).collect();
+    let ids: BTreeSet<String> = state
+        .commits
+        .iter()
+        .filter(|c| c.repository_id == repository_id && bot_shas.contains(c.sha.as_str()))
+        .map(|c| c.author_contributor_id.clone())
+        .filter(|id| !id.is_empty())
+        .collect();
+    ids.into_iter().collect()
+}
+
+/// Classify contributors first seen in this sync as bots when their login, name, or
+/// commit email contains "bot". Existing contributors and anyone with a curated
+/// affiliation are left alone; discovery reports them for review instead.
+fn mark_new_bots(state: &mut State, known: &HashSet<String>, curated: &HashSet<String>, bot_emails: &HashSet<String>) {
+    for contributor in state.contributors.iter_mut() {
+        if known.contains(&contributor.id)
+            || curated.contains(&contributor.id)
+            || curated.contains(&contributor.login.to_lowercase())
+        {
+            continue;
+        }
+        if bot_name(&contributor.login, &contributor.display_name) {
+            mark_bot(contributor, "BOT_NAME_HEURISTIC");
+        } else if bot_emails.contains(&contributor.id) {
+            mark_bot(contributor, "BOT_EMAIL_HEURISTIC");
+        }
+    }
+}
+
+/// Lowercased usernames and contributor IDs with curated affiliations. Read leniently:
+/// a sync must not fail on the affiliation file, which the build validates.
+fn curated_identities(config_dir: &Path) -> HashSet<String> {
+    #[derive(serde::Deserialize, Default)]
+    struct File {
+        #[serde(default)]
+        affiliations: Vec<Entry>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Entry {
+        username: Option<String>,
+        contributor_id: Option<String>,
+    }
+    let file: File = std::fs::read(config_dir.join("affiliations.yaml"))
+        .ok()
+        .and_then(|bytes| serde_yaml_ng::from_slice(&bytes).ok())
+        .unwrap_or_default();
+    file.affiliations
+        .into_iter()
+        .flat_map(|e| [e.username.map(|u| u.trim().trim_start_matches('@').to_lowercase()), e.contributor_id])
+        .flatten()
+        .collect()
 }
 
 /// New and newly merged pull requests and new commits for one repository.
@@ -334,7 +407,7 @@ fn sync_repository(state: &mut State, github: &mut GitHub, ctx: &RepoContext<'_>
 
     let watermark = state.watermark(&repository_id).cloned().unwrap_or_default();
     let initial_prs = ctx.reseed || branch_changed || watermark.pr_cursor.is_none();
-    let full_git = ctx.reseed || branch_changed || watermark.git_cursor.is_none();
+    let full_git = ctx.args.full_git || ctx.reseed || branch_changed || watermark.git_cursor.is_none();
     let mut summary = RepoSummary {
         name: spec.full_name(),
         repository_id: repository_id.clone(),
@@ -496,6 +569,7 @@ fn sync_repository(state: &mut State, github: &mut GitHub, ctx: &RepoContext<'_>
     );
 
     summary.emails_looked_up = resolve_accounts(state, github, ctx, &repository_id, &commits, &mut contributor_index)?;
+    summary.bot_email_authors = bot_email_authors(state, &repository_id, &commits);
 
     let watermark = state.watermark_mut(&repository_id);
     watermark.pr_cursor = Some(ctx.started);
@@ -674,6 +748,7 @@ fn upsert_commits(
         row.author_name = commit.author_name.clone();
         row.committer_name = commit.committer_name.clone();
         row.author_email_hash = email_hash(&commit.author_email);
+        row.author_email_domain = corporate_domain(&commit.author_email);
         row.committer_email_hash = email_hash(&commit.committer_email);
         row.authored_at = commit.authored_at.map(Ts);
         row.committed_at = commit.committed_at.map(Ts);

@@ -28,6 +28,9 @@ struct CompanyRow {
     website_url: String,
     #[serde(default)]
     aliases: Vec<String>,
+    /// Corporate email domains of the company's employees.
+    #[serde(default)]
+    domains: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -60,6 +63,8 @@ pub struct CompanyCatalog {
     pub companies: Vec<Company>,
     pub by_id: HashMap<String, usize>,
     pub aliases: HashMap<String, String>,
+    /// Lowercased email domain to company ID.
+    pub domains: HashMap<String, String>,
     /// Dated periods per contributor, sorted by `valid_from`.
     pub periods: HashMap<String, Vec<Affiliation>>,
     /// Undated mappings: the fallback for every date and the current profile affiliation.
@@ -74,6 +79,32 @@ impl CompanyCatalog {
 
     pub fn website(&self, id: &str) -> String {
         self.by_id.get(id).map(|&i| self.companies[i].website_url.clone()).unwrap_or_default()
+    }
+
+    /// The company whose aliases include `@<login>` for a GitHub organization.
+    pub fn organization_company(&self, login: &str) -> Option<&str> {
+        self.aliases.get(&normalize_company(&format!("@{login}"))).map(String::as_str)
+    }
+
+    /// The company for an email domain or one of its subdomains.
+    pub fn domain_company(&self, domain: &str) -> Option<&str> {
+        let mut candidate = domain;
+        loop {
+            if let Some(id) = self.domains.get(candidate) {
+                return Some(id);
+            }
+            candidate = candidate.split_once('.')?.1;
+            if !candidate.contains('.') {
+                return None;
+            }
+        }
+    }
+
+    /// The website host without `www.`, such as `union.ai`.
+    pub fn website_host(&self, id: &str) -> String {
+        let url = self.website(id);
+        let host = url.trim_start_matches("https://").split(['/', '?', '#']).next().unwrap_or_default();
+        host.trim_start_matches("www.").to_lowercase()
     }
 
     /// The dated period covering `day` (`YYYY-MM-DD`), if any.
@@ -174,6 +205,17 @@ pub fn load_company_catalog(config_dir: &Path, contributors: &[Contributor]) -> 
                 bail!("alias {alias:?} matches multiple companies");
             }
             catalog.aliases.insert(normalized, id.clone());
+        }
+        for domain in &row.domains {
+            let normalized = domain.trim().to_lowercase();
+            if normalized.is_empty() || !normalized.contains('.') || normalized.contains('@') {
+                bail!("{context}.domains must be email domains such as example.com");
+            }
+            if let Some(existing) = catalog.domains.insert(normalized.clone(), id.clone())
+                && existing != id
+            {
+                bail!("domain {normalized:?} belongs to multiple companies");
+            }
         }
         catalog.by_id.insert(id.clone(), catalog.companies.len());
         catalog.companies.push(Company { id, canonical_name: name, aliases: row.aliases, website_url: website });

@@ -46,11 +46,25 @@ pub struct Repository {
     pub target_branches: Vec<TargetBranch>,
 }
 
+/// A run of identical profile company values: first seen at `observed_at`, last
+/// confirmed at `last_observed_at`. A change happened between one run's last
+/// confirmation and the next run's first observation.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CompanyObservation {
     pub company: String,
     pub observed_at: Option<Ts>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_observed_at: Option<Ts>,
+}
+
+/// A run of identical public organization memberships (lowercased logins).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct OrganizationObservation {
+    pub organizations: Vec<String>,
+    pub observed_at: Option<Ts>,
+    pub last_observed_at: Option<Ts>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -71,6 +85,11 @@ pub struct Contributor {
     pub identity_kind_source: String,
     pub profile_name_checked: bool,
     pub profile_company_history: Vec<CompanyObservation>,
+    /// Public organization memberships at the last profile refresh (lowercased logins).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub organizations: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub organization_history: Vec<OrganizationObservation>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -110,6 +129,10 @@ pub struct Commit {
     /// Truncated SHA-256 of the lowercased author email; see `EmailIdentity`.
     pub author_email_hash: String,
     pub committer_email_hash: String,
+    /// Domain of a corporate author email (free-mail and noreply domains are left
+    /// empty); the address itself is never stored.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub author_email_domain: String,
     pub authored_at: Option<Ts>,
     pub committed_at: Option<Ts>,
     pub message: String,

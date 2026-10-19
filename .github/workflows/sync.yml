@@ -1,5 +1,6 @@
 # Daily: collect new activity (Git clones + GitHub GraphQL), save the state to the
-# `data` branch and the `pulse-state` release, then rebuild and deploy the site.
+# `data` branch and the `pulse-state` release, rebuild and deploy the site, and
+# propose company and affiliation updates in a pull request.
 # Pushes to main rebuild and deploy the site from the saved state without syncing.
 name: Sync and deploy
 
@@ -20,6 +21,10 @@ on:
         description: PR history for repositories without a scan cursor (0 = all)
         type: string
         default: "0"
+      full_git:
+        description: Re-read the full Git history of every repository (backfills commit fields)
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths:
@@ -48,8 +53,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     permissions:
-      # Commit the state to the data branch and replace the release asset.
+      # Commit the state to the data branch, replace the release asset, and push the
+      # company discovery branch.
       contents: write
+      # Open the company discovery pull request and comment on it.
+      pull-requests: write
+      # Start CI for the discovery pull request branch.
+      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -99,10 +109,12 @@ jobs:
           PULSE_GITHUB_TOKEN: ${{ secrets.PULSE_GITHUB_TOKEN }}
           RESEED: ${{ inputs.reseed }}
           HISTORY_DAYS: ${{ inputs.history_days || '0' }}
+          FULL_GIT: ${{ inputs.full_git }}
         run: |
           args=(--state "$STATE" --out data-branch/state --config-dir config --history-days "$HISTORY_DAYS"
             --summary-file "$GITHUB_STEP_SUMMARY")
           for repository in $RESEED; do args+=(--reseed "$repository"); done
+          if [ "$FULL_GIT" = "true" ]; then args+=(--full-git); fi
           ./target/release/pulse sync "${args[@]}"
           echo "STATE=data-branch/state" >> "$GITHUB_ENV"
           echo "SYNCED=true" >> "$GITHUB_ENV"
@@ -138,6 +150,22 @@ jobs:
 
       - name: Report the site data
         run: ./target/release/pulse summary --data dist/data --summary-file "$GITHUB_STEP_SUMMARY"
+
+      # After the site build, so the published site never includes unreviewed proposals.
+      - name: Propose company and affiliation updates
+        if: env.SYNCED == 'true'
+        # Proposals are optional; a problem here must not block the deploy.
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PULSE_GITHUB_TOKEN: ${{ secrets.PULSE_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          # Optional user token with Copilot access, so Copilot acts on the review request.
+          COPILOT_TOKEN: ${{ secrets.PULSE_COPILOT_TOKEN }}
+        run: |
+          ./target/release/pulse discover --state data-branch/state --config-dir config --apply \
+            --report discovery.md --summary-file "$GITHUB_STEP_SUMMARY"
+          scripts/discovery-pr.sh discovery.md
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:

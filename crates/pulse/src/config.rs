@@ -191,6 +191,28 @@ pub fn classify_github_account(
     ("UNKNOWN".into(), "UNKNOWN".into())
 }
 
+/// A login or display name containing "bot", such as `snyk-bot` or `goreleaserbot`. A
+/// substring match also hits names like "Talbot", so sync only applies it to new
+/// contributors without curated affiliations, and discovery reports existing ones.
+pub fn bot_name(login: &str, display_name: &str) -> bool {
+    login.to_lowercase().contains("bot") || display_name.to_lowercase().contains("bot")
+}
+
+/// An email address whose local part contains "bot", such as `snyk-bot@snyk.io`.
+pub fn bot_email(email: &str) -> bool {
+    email.trim().rsplit_once('@').is_some_and(|(local, _)| local.to_lowercase().contains("bot"))
+}
+
+/// Mark `contributor` as a bot unless a catalog rule or GitHub already classifies it.
+pub fn mark_bot(contributor: &mut Contributor, source: &str) {
+    if contributor.identity_kind_source == "CATALOG_RULE" || contributor.identity_kind == "BOT" {
+        return;
+    }
+    contributor.identity_kind = "BOT".into();
+    contributor.identity_kind_source = source.into();
+    contributor.is_bot = true;
+}
+
 /// Catalog rules override automatic classification.
 pub fn apply_identity_rules(contributors: &mut [Contributor], identity_rules: &HashMap<String, String>) {
     for contributor in contributors {
@@ -217,6 +239,29 @@ mod tests {
         assert_eq!(flyte.target_branches.len(), 2);
         assert_eq!(catalog.identity_rules.get("goreleaserbot").map(String::as_str), Some("BOT"));
         assert_eq!(catalog.identity_rules.get("claude").map(String::as_str), Some("AI"));
+    }
+
+    #[test]
+    fn bot_substrings() {
+        assert!(bot_name("snyk-bot", "Snyk bot"));
+        assert!(bot_name("goreleaserbot", ""));
+        assert!(bot_name("someone", "VMIP Robot"));
+        assert!(!bot_name("octocat", "The Octocat"));
+        assert!(bot_email("github+bot@snyk.io"));
+        assert!(bot_email("vmip-robot@vinted.com"));
+        assert!(!bot_email("ryan@wherobots.com"), "only the local part counts");
+
+        let mut contributor =
+            Contributor { login: "helper-bot".into(), identity_kind: "HUMAN".into(), ..Contributor::default() };
+        mark_bot(&mut contributor, "BOT_NAME_HEURISTIC");
+        assert_eq!((contributor.identity_kind.as_str(), contributor.is_bot), ("BOT", true));
+        let mut ruled = Contributor {
+            identity_kind: "HUMAN".into(),
+            identity_kind_source: "CATALOG_RULE".into(),
+            ..Contributor::default()
+        };
+        mark_bot(&mut ruled, "BOT_NAME_HEURISTIC");
+        assert_eq!(ruled.identity_kind, "HUMAN", "a catalog rule wins");
     }
 
     #[test]

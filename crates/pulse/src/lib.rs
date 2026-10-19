@@ -3,6 +3,7 @@
 pub mod attribution;
 pub mod companies;
 pub mod config;
+pub mod discovery;
 pub mod metrics;
 pub mod report;
 pub mod snapshot_builder;

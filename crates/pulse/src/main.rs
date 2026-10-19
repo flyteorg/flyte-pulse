@@ -25,6 +25,8 @@ enum Command {
     Convert(ConvertArgs),
     /// Print a Markdown report of a built snapshot (for the GitHub Actions job summary).
     Summary(SummaryArgs),
+    /// Find new companies, affiliations, and affiliation changes for review.
+    Discover(pulse::discovery::DiscoverArgs),
 }
 
 #[derive(Args)]
@@ -89,5 +91,6 @@ fn main() -> Result<()> {
         Command::Build(args) => build(args),
         Command::Convert(args) => write_state(&args.to, &read_state(&args.from)?),
         Command::Summary(args) => summary(args),
+        Command::Discover(args) => pulse::discovery::run(args),
     }
 }
