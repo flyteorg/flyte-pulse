@@ -26,6 +26,8 @@ affiliations:
 # Curated by hand.
 - username: carol
   company_id: lyft
+- username: helper-bot
+  company_id: lyft
 ";
 
 fn ts(value: &str) -> Option<Ts> {
@@ -85,6 +87,10 @@ fn setup() -> (tempfile::TempDir, State) {
     // erin: commits from lyft.com, then union.ai (an earlier affiliation), profile Union.
     state.contributors.push(person("github:5", "erin", "Union"));
     state.contributors.push(person("github:6", "frank", "Student"));
+    let mut bot = person("github:7", "helper-bot", "");
+    bot.identity_kind = "BOT".into();
+    bot.identity_kind_source = "CATALOG_RULE".into();
+    state.contributors.push(bot);
     state.commits = vec![
         commit('a', "github:2", "2026-09-01T00:00:00Z", "union.ai"),
         commit('b', "github:3", "2025-06-01T00:00:00Z", ""),
@@ -141,6 +147,11 @@ fn finds_companies_affiliations_and_changes() {
         .collect();
     assert_eq!(periods, vec![("erin", "lyft", "2020-01-10", "2021-07-01")]);
     assert!(discovery.review.iter().all(|r| !r.subject.contains("Student")), "ignored strings are not proposed");
+    assert!(
+        discovery.review.iter().any(|r| r.kind == "Bot with an affiliation" && r.subject.contains("helper-bot")),
+        "{:?}",
+        discovery.review
+    );
 
     let report = markdown(&discovery, &catalog, None);
     assert!(report.contains("### Affiliation changes"));

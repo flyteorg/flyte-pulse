@@ -453,6 +453,17 @@ pub fn discover(
                          with `kind: HUMAN` if this is a person"
                     .into(),
             });
+        } else if !is_human(contributor)
+            && (catalog.current.contains_key(&contributor.id) || catalog.periods.contains_key(&contributor.id))
+        {
+            discovery.review.push(ReviewItem {
+                kind: "Bot with an affiliation",
+                subject: profile_link(contributor),
+                detail: format!(
+                    "classified as {} ({}); remove its entries from `affiliations.yaml`",
+                    contributor.identity_kind, contributor.identity_kind_source
+                ),
+            });
         } else if suspected_bot(contributor, catalog) {
             discovery.review.push(ReviewItem {
                 kind: "Possible bot",
