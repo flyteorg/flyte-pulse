@@ -58,8 +58,6 @@ jobs:
       contents: write
       # Open the company discovery pull request and comment on it.
       pull-requests: write
-      # Start CI for the discovery pull request branch.
-      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

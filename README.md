@@ -185,15 +185,18 @@ The `main` ruleset requests a Copilot review on every push, and the workflow pos
 an `@Copilot` comment asking it to verify company names and websites, that each
 account is a real person, and that the evidence supports each affiliation. Copilot
 acts on mentions from users with Copilot access, so set a `PULSE_COPILOT_TOKEN`
-secret (a user token) for that. Pull requests opened with the workflow token do not
-trigger CI, so the script dispatches `ci.yml` on the branch for the required checks.
+secret (a user token) for that; without it the comment is posted once, when the pull
+request is opened. GitHub holds CI for pushes by the workflow, so approve the CI run
+on the pull request ("Approve workflows to run") after each update to get the
+required checks.
 Once someone else pushes to the branch, the workflow stops updating it until it is
 merged or closed. Run the workflow with `full_git` once to backfill email domains for
 history collected before this feature.
 
-New contributors whose login, name, or commit email contains "bot" are classified
-as bots, unless they have a curated affiliation; existing accounts like that are
-listed for review. `identity_rules` always win.
+New contributors with a login or commit email word ending in "bot" (`snyk-bot`,
+`goreleaserbot`) or a display name with the word "bot" or "robot" are classified as
+bots, unless they have a curated affiliation; existing accounts like that are listed
+for review. `identity_rules` always win.
 
 ## License
 

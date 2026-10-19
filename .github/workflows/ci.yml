@@ -4,8 +4,6 @@ on:
   pull_request:
   push:
     branches: [main]
-  # The company discovery workflow dispatches CI for its pull request branch.
-  workflow_dispatch:
 
 permissions:
   contents: read
