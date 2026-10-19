@@ -47,10 +47,6 @@ else
   gh pr edit "$pr" --body-file "$report"
 fi
 
-# Pull requests opened with the workflow token do not trigger CI; dispatch it on the
-# branch so the required checks report on its head commit.
-gh workflow run ci.yml --ref "$branch" || echo "::warning::Could not start CI for $branch."
-
 # The repository ruleset requests a Copilot review on every push. The comment asks
 # Copilot to check and fix the proposals; Copilot only acts on mentions from a user
 # with Copilot access, so it uses COPILOT_TOKEN when that is set. Without it the
