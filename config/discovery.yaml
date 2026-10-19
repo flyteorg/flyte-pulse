@@ -28,4 +28,6 @@ ignore:
     - flyte.org
     # A common misspelling of gmail.com.
     - gmai.com
+    # Student and alumni addresses of the University of Michigan.
+    - umich.edu
   users: []

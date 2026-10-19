@@ -131,8 +131,6 @@ affiliations:
   company_id: spotify
 - username: clairemcginty
   company_id: spotify
-- username: claude
-  company_id: anthropic
 - username: cmontemuino
   company_id: adyen
 - username: convexquad
@@ -283,6 +281,7 @@ affiliations:
   company_id: ziprecruiter
 - username: jimbobby5
   company_id: g-research
+  valid_from: '2026-10-18'
 - username: jingchanglu
   company_id: xiamen-university
 - username: jmonty42

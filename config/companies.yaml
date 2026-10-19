@@ -760,13 +760,6 @@ companies:
   canonical_name: UC San Diego
   website_url: https://ucsd.edu/
   aliases: []
-- id: umich
-  canonical_name: 'University Of Michigan'
-  website_url: https://www.umich.edu/
-  aliases:
-  - '@umich'
-  domains:
-  - umich.edu
 - id: union
   canonical_name: Union
   website_url: https://www.union.ai
