@@ -31,6 +31,10 @@ identity_rules:
   - provider: GITHUB
     login: vmip-robot
     kind: BOT
+  # Derek Yu's personal account; "bot" is part of the login.
+  - provider: GITHUB
+    login: dyu-bot
+    kind: HUMAN
 # Each ACTIVE repository needs at least one target branch. Each tracked branch
 # is shown separately (for example, flyte main/v2 and master/v1). The optional
 # module is a grouping label; label is the branch's display name. Use INACTIVE
