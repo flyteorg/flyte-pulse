@@ -463,7 +463,7 @@ pub fn discover(
             discovery.review.push(ReviewItem {
                 kind: "Classified as bot",
                 subject: profile_link(contributor),
-                detail: "a new account whose login, name, or commit email contains \"bot\"; add an identity rule \
+                detail: "a new account whose login, name, or commit email says \"bot\"; add an identity rule \
                          with `kind: HUMAN` if this is a person"
                     .into(),
             });
@@ -482,10 +482,7 @@ pub fn discover(
             discovery.review.push(ReviewItem {
                 kind: "Possible bot",
                 subject: profile_link(contributor),
-                detail: format!(
-                    "\"{}\" contains \"bot\"; add an identity rule with `kind: BOT` if this is a bot",
-                    contributor.display_name
-                ),
+                detail: "the login or name says \"bot\"; add an identity rule with `kind: BOT` if this is a bot".into(),
             });
         }
     }

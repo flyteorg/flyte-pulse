@@ -37,10 +37,12 @@ git -c user.name="$bot_name" -c user.email="$bot_email" \
 git push --quiet --force origin "$branch"
 
 pr="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')"
+created=false
 if [ -z "$pr" ]; then
   gh pr create --base main --head "$branch" \
     --title "Company and affiliation updates" --body-file "$report"
   pr="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number')"
+  created=true
 else
   gh pr edit "$pr" --body-file "$report"
 fi
@@ -51,6 +53,9 @@ gh workflow run ci.yml --ref "$branch" || echo "::warning::Could not start CI fo
 
 # The repository ruleset requests a Copilot review on every push. The comment asks
 # Copilot to check and fix the proposals; Copilot only acts on mentions from a user
-# with Copilot access, so it uses COPILOT_TOKEN when that is set.
-GH_TOKEN="${COPILOT_TOKEN:-$GH_TOKEN}" gh pr comment "$pr" --body-file scripts/copilot-discovery-review.md \
-  || echo "::notice::Could not comment on pull request #$pr."
+# with Copilot access, so it uses COPILOT_TOKEN when that is set. Without it the
+# comment is only posted once, when the pull request is opened.
+if [ "$created" = true ] || [ -n "${COPILOT_TOKEN:-}" ]; then
+  GH_TOKEN="${COPILOT_TOKEN:-$GH_TOKEN}" gh pr comment "$pr" --body-file scripts/copilot-discovery-review.md \
+    || echo "::notice::Could not comment on pull request #$pr."
+fi
