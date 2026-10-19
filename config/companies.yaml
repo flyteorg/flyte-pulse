@@ -32,6 +32,8 @@ companies:
   canonical_name: Aleph Alpha
   website_url: https://aleph-alpha.com
   aliases: []
+  domains:
+  - aleph-alpha.com
 - id: alibaba
   canonical_name: Alibaba Group
   website_url: https://www.alibabagroup.com/
@@ -47,6 +49,8 @@ companies:
   website_url: https://www.antithesis.com/
   aliases:
   - '@antithesishq'
+  domains:
+  - antithesis.com
 - id: anyscale
   canonical_name: Anyscale
   website_url: https://anyscale.com
@@ -74,10 +78,14 @@ companies:
   canonical_name: Artera
   website_url: https://artera.ai/
   aliases: []
+  domains:
+  - artera.ai
 - id: astrus
   canonical_name: Astrus
   website_url: https://www.astrus.ai/
   aliases: []
+  domains:
+  - astrus.ai
 - id: attensi
   canonical_name: Attensi
   website_url: https://www.attensi.com
@@ -119,6 +127,8 @@ companies:
   website_url: https://calcasa.nl
   aliases:
   - '@calcasa'
+  domains:
+  - calcasa.nl
 - id: california-state-university
   canonical_name: California State University
   website_url: https://www.calstate.edu/
@@ -150,6 +160,8 @@ companies:
   website_url: https://confluent.io
   aliases:
   - '@confluentinc'
+  domains:
+  - confluent.io
 - id: containership
   canonical_name: Containership
   website_url: https://containership.io
@@ -161,10 +173,14 @@ companies:
   aliases:
   - Cradle.bio
   - Cradle (www.cradle.bio)
+  domains:
+  - cradle.bio
 - id: cuspai
   canonical_name: CuspAI
   website_url: https://cusp.ai/
   aliases: []
+  domains:
+  - cusp.ai
 - id: dartmouth-college
   canonical_name: Dartmouth College
   website_url: https://home.dartmouth.edu/
@@ -227,11 +243,15 @@ companies:
   website_url: https://examol.io
   aliases:
   - '@examol-corp'
+  domains:
+  - examol.io
 - id: expedia
   canonical_name: Expedia Group
   website_url: https://opensource.expediagroup.com/
   aliases:
   - '@ExpediaGroup'
+  domains:
+  - expediagroup.com
 - id: fanatics
   canonical_name: Fanatics
   website_url: https://fanaticsinc.com/tech-and-mobile/
@@ -252,11 +272,14 @@ companies:
   website_url: https://www.freenome.com
   aliases:
   - '@freenome'
+  domains:
+  - freenome.com
 - id: g-research
   canonical_name: G-Research
   website_url: https://www.gresearch.com/
   aliases:
   - G-Research, Contributor (armada, testkube)
+  - '@G-Research'
 - id: github
   canonical_name: GitHub
   website_url: https://github.com/about
@@ -340,6 +363,8 @@ companies:
   canonical_name: KDM Training
   website_url: https://gnosis.cx/kdm
   aliases: []
+  domains:
+  - gnosis.cx
 - id: kiet
   canonical_name: KIET Group of Institutions
   website_url: https://www.kiet.edu/
@@ -368,6 +393,8 @@ companies:
   canonical_name: Lila Sciences
   website_url: https://www.lila.ai
   aliases: []
+  domains:
+  - lila.ai
 - id: line
   canonical_name: LINE
   website_url: https://www.linecorp.com/en/
@@ -377,6 +404,8 @@ companies:
   website_url: https://www.linkedin.com
   aliases:
   - '@LinkedIn @Microsoft @ray-project @flyteorg @vLLM-project @apache'
+  domains:
+  - linkedin.com
 - id: liquid-ai
   canonical_name: Liquid AI
   website_url: https://liquid.ai
@@ -396,6 +425,8 @@ companies:
   aliases:
   - '@lyft'
   - Lyft Inc.
+  domains:
+  - lyft.com
 - id: mavik-labs
   canonical_name: Mavik Labs
   website_url: https://maviklabs.com
@@ -414,16 +445,22 @@ companies:
   website_url: https://merantix-momentum.com/
   aliases:
   - '@merantix-momentum'
+  domains:
+  - merantix-momentum.com
 - id: mercari
   canonical_name: Mercari
   website_url: https://mercari.com
   aliases:
   - '@mercari'
+  domains:
+  - mercari.com
 - id: mercedes-benz
   canonical_name: Mercedes-Benz
   website_url: https://opensource.mercedes-benz.com/
   aliases:
   - '@mercedes-benz'
+  domains:
+  - mercedes-benz.com
 - id: metrans
   canonical_name: Metrans
   website_url: https://metrans.eu/
@@ -443,6 +480,8 @@ companies:
   canonical_name: Mistral AI
   website_url: https://mistral.ai
   aliases: []
+  domains:
+  - mistral.ai
 - id: modal
   canonical_name: Modal
   website_url: https://modal.com
@@ -471,6 +510,8 @@ companies:
   website_url: https://nextdoor.com/
   aliases:
   - Nextdoor.com, Inc.
+  domains:
+  - nextdoor.com
 - id: nokia
   canonical_name: Nokia
   website_url: https://www.nokia.com/
@@ -494,6 +535,8 @@ companies:
   website_url: https://nvidia.com
   aliases:
   - '@NVIDIA'
+  domains:
+  - nvidia.com
 - id: nycu
   canonical_name: National Yang Ming Chiao Tung University
   website_url: https://www.nycu.edu.tw/nycu/en/
@@ -513,6 +556,8 @@ companies:
   website_url: https://planet.com
   aliases:
   - '@planetlabs'
+  domains:
+  - planet.com
 - id: prime-intellect
   canonical_name: Prime Intellect
   website_url: https://www.primeintellect.ai/
@@ -528,6 +573,8 @@ companies:
   website_url: https://www.quantpi.com
   aliases:
   - '@QuantPi'
+  domains:
+  - quantpi.com
 - id: rebellion-defense
   canonical_name: Rebellion Defense
   website_url: https://rebelliondefense.com/
@@ -610,6 +657,8 @@ companies:
   website_url: https://www.spotify.com
   aliases:
   - '@spotify'
+  domains:
+  - spotify.com
 - id: stack-av
   canonical_name: Stack AV
   website_url: https://www.stackav.com
@@ -622,6 +671,8 @@ companies:
   canonical_name: Stripe
   website_url: https://stripe.com
   aliases: []
+  domains:
+  - stripe.com
 - id: summation
   canonical_name: Summation
   website_url: https://summation.com
@@ -670,6 +721,8 @@ companies:
   website_url: https://www.theoremlp.com
   aliases:
   - '@theoremlp'
+  domains:
+  - theoremlp.com
 - id: thoughtworks
   canonical_name: Thoughtworks
   website_url: https://www.thoughtworks.com/
@@ -689,6 +742,8 @@ companies:
   website_url: https://www.together.ai/
   aliases:
   - Together.AI
+  domains:
+  - together.ai
 - id: traceframe
   canonical_name: TraceFrame
   website_url: https://traceframe.ai/
@@ -715,6 +770,8 @@ companies:
   - Union.ai
   - flyteorg
   - '@flyteorg'
+  domains:
+  - union.ai
 - id: university-of-washington
   canonical_name: University of Washington
   website_url: https://www.washington.edu/
@@ -735,20 +792,28 @@ companies:
   website_url: https://vinted.com
   aliases:
   - '@vinted'
+  domains:
+  - vinted.com
 - id: wayve
   canonical_name: Wayve
   website_url: https://wayve.ai
   aliases: []
+  domains:
+  - wayve.ai
 - id: wherobots
   canonical_name: Wherobots
   website_url: https://wherobots.com
   aliases:
   - '@wherobots'
+  domains:
+  - wherobots.com
 - id: wolt
   canonical_name: Wolt
   website_url: https://wolt.com
   aliases:
   - '@woltapp'
+  domains:
+  - wolt.com
 - id: woven-by-toyota
   canonical_name: Woven by Toyota, Inc.
   website_url: https://woven.toyota/
@@ -778,3 +843,5 @@ companies:
   website_url: https://www.ziprecruiter.com
   aliases:
   - '@ZipRecruiter'
+  domains:
+  - ziprecruiter.com
