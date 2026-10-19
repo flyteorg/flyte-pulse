@@ -67,7 +67,7 @@ pub fn run(args: DiscoverArgs) -> Result<()> {
     let discovery = discover(&state, &catalog, &ignore, today, &organizations);
     let mut note = None;
     if args.apply && discovery.has_edits() {
-        note = Some(match apply(&discovery, &args.config_dir, &state.contributors, &format_date(today)) {
+        note = Some(match apply(&discovery, &args.config_dir, &state.contributors) {
             Ok(()) => "This pull request applies the candidates below to `config/companies.yaml` and \
                        `config/affiliations.yaml`. Merging it approves them; edit or remove entries that are wrong."
                 .to_string(),
@@ -183,6 +183,18 @@ pub struct NewCompany {
 pub struct NewAffiliation {
     pub login: String,
     pub company_id: String,
+    /// Start of the affiliation when an earlier one is known; undated otherwise.
+    pub valid_from: Option<String>,
+    pub evidence: String,
+}
+
+/// A start date for an existing undated affiliation, where it follows an earlier one.
+#[derive(Clone, Debug)]
+pub struct CurrentStart {
+    pub login: String,
+    pub contributor_id: String,
+    pub company_id: String,
+    pub valid_from: String,
     pub evidence: String,
 }
 
@@ -225,6 +237,7 @@ pub struct Discovery {
     pub affiliations: Vec<NewAffiliation>,
     pub changes: Vec<Change>,
     pub periods: Vec<Period>,
+    pub current_starts: Vec<CurrentStart>,
     pub review: Vec<ReviewItem>,
 }
 
@@ -236,7 +249,8 @@ impl Discovery {
             && self.companies.is_empty()
             && self.affiliations.is_empty()
             && self.changes.is_empty()
-            && self.periods.is_empty())
+            && self.periods.is_empty()
+            && self.current_starts.is_empty())
     }
 }
 
@@ -725,6 +739,7 @@ pub fn discover(
                 discovery.affiliations.push(NewAffiliation {
                     login: contributor.login.clone(),
                     company_id: company.clone(),
+                    valid_from: None,
                     evidence: format!("{}: {evidence}", profile_link(contributor)),
                 });
             }
@@ -836,8 +851,10 @@ pub fn discover(
         if merged.len() >= 2 {
             let clean = merged.windows(2).all(|pair| pair[0].2 <= pair[1].1 + DOMAIN_OVERLAP_DAYS * SECONDS_PER_DAY);
             let distinct: BTreeSet<&String> = merged.iter().map(|m| &m.0).collect();
+            // The day the latest company's affiliation starts, when the period before it is proposed.
+            let mut current_start: Option<String> = None;
             if clean && distinct.len() == merged.len() {
-                for pair in merged.windows(2) {
+                for (index, pair) in merged.windows(2).enumerate() {
                     let (company, first, last, commits, domains) = &pair[0];
                     let next = pair[1].1;
                     let end =
@@ -853,6 +870,9 @@ pub fn discover(
                     if covered || overlaps {
                         continue;
                     }
+                    if index == merged.len() - 2 {
+                        current_start = Some(valid_until.clone());
+                    }
                     discovery.periods.push(Period {
                         login: contributor.login.clone(),
                         company_id: company.clone(),
@@ -866,6 +886,28 @@ pub fn discover(
                             date(*last),
                             pair[1].4.join(", ")
                         ),
+                    });
+                }
+            }
+            // Date the latest company's affiliation from the end of the earlier one: a new
+            // proposal, or an existing undated entry for that company.
+            if let Some(valid_from) = current_start {
+                let latest = &merged[merged.len() - 1].0;
+                let proposed =
+                    discovery.affiliations.iter_mut().find(|a| a.login == contributor.login && a.company_id == *latest);
+                if let Some(affiliation) = proposed {
+                    affiliation.valid_from = Some(valid_from);
+                } else if undated.is_some_and(|a| a.company_id == *latest) {
+                    discovery.current_starts.push(CurrentStart {
+                        login: contributor.login.clone(),
+                        contributor_id: id.to_string(),
+                        company_id: latest.clone(),
+                        evidence: format!(
+                            "{}: commits from {} follow the earlier affiliation",
+                            profile_link(contributor),
+                            merged[merged.len() - 1].4.join(", ")
+                        ),
+                        valid_from,
                     });
                 }
             }
@@ -948,10 +990,12 @@ pub fn markdown(discovery: &Discovery, catalog: &CompanyCatalog, applied: Option
         out.push('\n');
     }
     if !discovery.affiliations.is_empty() {
-        let _ = writeln!(out, "### New affiliations\n\n| Contributor | Company | Evidence |\n|---|---|---|");
+        let _ =
+            writeln!(out, "### New affiliations\n\n| Contributor | Company | Since | Evidence |\n|---|---|---|---|");
         for a in &discovery.affiliations {
             let (link, evidence) = a.evidence.split_once(": ").unwrap_or((&a.login, &a.evidence));
-            let _ = writeln!(out, "| {link} | {} | {evidence} |", name(&a.company_id));
+            let since = a.valid_from.as_deref().unwrap_or("all activity");
+            let _ = writeln!(out, "| {link} | {} | {since} | {evidence} |", name(&a.company_id));
         }
         out.push('\n');
     }
@@ -981,6 +1025,17 @@ pub fn markdown(discovery: &Discovery, catalog: &CompanyCatalog, applied: Option
                 p.valid_from,
                 p.valid_until
             );
+        }
+        out.push('\n');
+    }
+    if !discovery.current_starts.is_empty() {
+        let _ = writeln!(
+            out,
+            "### Start dates for current affiliations\n\nThese undated entries follow an earlier affiliation, so they get a start date.\n\n| Contributor | Company | Since | Evidence |\n|---|---|---|---|"
+        );
+        for c in &discovery.current_starts {
+            let (link, evidence) = c.evidence.split_once(": ").unwrap_or((&c.login, &c.evidence));
+            let _ = writeln!(out, "| {link} | {} | {} | {evidence} |", name(&c.company_id), c.valid_from);
         }
         out.push('\n');
     }

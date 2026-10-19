@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use clap::{Args, Parser, Subcommand};
 use pulse::companies::load_company_catalog;
 use pulse::config::{apply_identity_rules, load_catalog};
@@ -27,6 +27,29 @@ enum Command {
     Summary(SummaryArgs),
     /// Find new companies, affiliations, and affiliation changes for review.
     Discover(pulse::discovery::DiscoverArgs),
+    /// Sort companies.yaml by company ID and affiliations.yaml by username.
+    FormatConfig(FormatConfigArgs),
+}
+
+#[derive(Args)]
+struct FormatConfigArgs {
+    /// Directory containing companies.yaml and affiliations.yaml.
+    #[arg(long, default_value = "config")]
+    config_dir: PathBuf,
+    /// Fail if a file is not sorted instead of sorting it.
+    #[arg(long)]
+    check: bool,
+}
+
+fn format_config(args: FormatConfigArgs) -> Result<()> {
+    let unsorted = pulse::config_format::format_config(&args.config_dir, args.check)?;
+    if args.check && !unsorted.is_empty() {
+        bail!("{} not sorted; run `pulse format-config`", unsorted.join(" and "));
+    }
+    for name in unsorted {
+        eprintln!("Sorted {name}");
+    }
+    Ok(())
 }
 
 #[derive(Args)]
@@ -92,5 +115,6 @@ fn main() -> Result<()> {
         Command::Convert(args) => write_state(&args.to, &read_state(&args.from)?),
         Command::Summary(args) => summary(args),
         Command::Discover(args) => pulse::discovery::run(args),
+        Command::FormatConfig(args) => format_config(args),
     }
 }
