@@ -133,3 +133,11 @@ repositories:
     target_branches:
       - name: master
         label: v1
+  - provider: GITHUB
+    host: github.com
+    owner: flyteorg
+    name: flyte-pulse
+    module: tooling
+    status: ACTIVE
+    target_branches:
+      - name: main
