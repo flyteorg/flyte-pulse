@@ -338,8 +338,25 @@ fn is_human(contributor: &Contributor) -> bool {
     contributor.identity_kind.eq_ignore_ascii_case("HUMAN")
 }
 
+// GitHub notifies every account @-mentioned in a pull request description, so the
+// report links accounts without "@" and quotes profile text in code spans.
+
 fn profile_link(contributor: &Contributor) -> String {
-    format!("[@{0}](https://github.com/{0})", contributor.login)
+    account_link(&contributor.login)
+}
+
+/// A link to a GitHub user or organization.
+fn account_link(login: &str) -> String {
+    format!("[{login}](https://github.com/{login})")
+}
+
+fn account_links(logins: &[String]) -> String {
+    logins.iter().map(|l| account_link(l)).collect::<Vec<_>>().join(", ")
+}
+
+/// Free-form text, such as a profile company, as a code span inside a table cell.
+fn code(value: &str) -> String {
+    format!("`{}`", value.replace('`', "'").replace('|', "\\|"))
 }
 
 /// Unknown accounts named like bots are reported, never reclassified or affiliated.
@@ -538,8 +555,8 @@ pub fn discover(
         match organization {
             Some(org) => {
                 let evidence = format!(
-                    "GitHub organization @{} with website {}; {summary}",
-                    org.login,
+                    "GitHub organization {} with website {}; {summary}",
+                    account_link(&org.login),
                     url_host(&org.website_url)
                 );
                 let existing = [&org.name, &org.login]
@@ -635,12 +652,12 @@ pub fn discover(
                     alias: format!("@{}", org.login),
                     domains: Vec::new(),
                     logins: users,
-                    evidence: format!("GitHub organization @{}", org.login),
+                    evidence: format!("GitHub organization {}", account_link(&org.login)),
                 });
             }
             None => discovery.review.push(ReviewItem {
                 kind: "Unknown organization",
-                subject: format!("@{login}"),
+                subject: code(&format!("@{login}")),
                 detail: format!(
                     "{} in the profile of {}",
                     if organization.is_some() {
@@ -648,7 +665,7 @@ pub fn discover(
                     } else {
                         "not a GitHub organization"
                     },
-                    users.iter().map(|l| format!("@{l}")).collect::<Vec<_>>().join(", ")
+                    account_links(&users)
                 ),
             }),
         }
@@ -721,10 +738,10 @@ pub fn discover(
             )
         };
         let signal: Option<(String, String)> = if let Some(company) = &profile_company {
-            Some((company.clone(), format!("profile company \"{profile}\"")))
+            Some((company.clone(), format!("profile company {}", code(profile))))
         } else if org_companies.len() == 1 {
             let (company, org) = org_companies.iter().next().expect("one entry");
-            Some((company.clone(), format!("public member of @{org}")))
+            Some((company.clone(), format!("public member of {}", account_link(org))))
         } else {
             latest_domain.map(|(company, run)| (company.clone(), domain_evidence(run)))
         };
@@ -760,10 +777,10 @@ pub fn discover(
                         date: since.clone(),
                         first_activity: first.clone(),
                         evidence: format!(
-                            "{}: profile company changed from \"{}\" (last seen {until}) to \"{}\" (first seen {since})",
+                            "{}: profile company changed from {} (last seen {until}) to {} (first seen {since})",
                             profile_link(contributor),
-                            previous.company,
-                            last.company
+                            code(&previous.company),
+                            code(&last.company)
                         ),
                     });
                     changed = true;
@@ -913,8 +930,8 @@ pub fn discover(
     for (profile, logins) in unmatched_profiles {
         discovery.review.push(ReviewItem {
             kind: "Unmatched profile company",
-            subject: format!("\"{profile}\""),
-            detail: logins.iter().map(|l| format!("@{l}")).collect::<Vec<_>>().join(", "),
+            subject: code(&profile),
+            detail: account_links(&logins),
         });
     }
     discovery
@@ -948,11 +965,8 @@ pub fn markdown(discovery: &Discovery, catalog: &CompanyCatalog, applied: Option
             "### New companies\n\n| Company | Website | Alias | Domains | Evidence |\n|---|---|---|---|---|"
         );
         for c in &discovery.companies {
-            let named = if c.logins.is_empty() {
-                String::new()
-            } else {
-                format!("; named by {}", c.logins.iter().map(|l| format!("@{l}")).collect::<Vec<_>>().join(", "))
-            };
+            let named =
+                if c.logins.is_empty() { String::new() } else { format!("; named by {}", account_links(&c.logins)) };
             let _ = writeln!(
                 out,
                 "| {} (`{}`) | {} | `{}` | {} | {}{named} |",
@@ -969,13 +983,7 @@ pub fn markdown(discovery: &Discovery, catalog: &CompanyCatalog, applied: Option
     if !discovery.aliases.is_empty() {
         let _ = writeln!(out, "### Company aliases\n\n| Alias | Company | Named by |\n|---|---|---|");
         for a in &discovery.aliases {
-            let _ = writeln!(
-                out,
-                "| `{}` | {} | {} |",
-                a.alias,
-                name(&a.company_id),
-                a.logins.iter().map(|l| format!("@{l}")).collect::<Vec<_>>().join(", ")
-            );
+            let _ = writeln!(out, "| `{}` | {} | {} |", a.alias, name(&a.company_id), account_links(&a.logins));
         }
         out.push('\n');
     }
