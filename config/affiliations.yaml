@@ -23,16 +23,36 @@
 #   valid_from: '2025-01-01'
 # Adding or changing a company mapping through a merged PR constitutes review.
 affiliations:
+- username: 0yukali0
+  company_id: apache-software-foundation
+- username: 1fanwang
+  company_id: linkedin
 - username: AaronSiddiky
   company_id: enagrams
 - username: abhijeet-chatterjee
   company_id: microsoft
+- username: adarsh-jha-dev
+  company_id: humane-intelligence
 - username: AdilFayyaz
   company_id: union
 - username: adinin
   company_id: servicenow
+- username: aditya7302
+  company_id: iiit-gwalior
 - username: adrianloy
   company_id: merantix-momentum
+- username: AdrianoKF
+  company_id: appliedai-institute
+- username: akarsh-jain-790
+  company_id: hackerrank
+- username: akashgreninja
+  company_id: bangalore-institute-of-technology
+- username: alykhantejani
+  company_id: sharechat
+- username: aminmaghsodi
+  company_id: sahab-pardaz
+- username: amitani
+  company_id: artera
 - username: anandswaminathan
   company_id: lyft
 - username: andrei-trandafir
@@ -47,60 +67,120 @@ affiliations:
   company_id: nvidia
 - username: apatel-fn
   company_id: freenome
+- username: ArjunSharda
+  company_id: tleem
 - username: ArthurBook
   company_id: liquid-ai
 - username: asahalyft
   company_id: lyft
+- username: Ash0807
+  company_id: its-engineering-college
+- username: asoundarya96
+  company_id: thoughtworks
+- username: austin362667
+  company_id: apple
 - username: aviaviavi
   company_id: scarf
 - username: aybidi
   company_id: spotify
+- username: AyushK-101
+  company_id: kiet
+- username: Azanul
+  company_id: denklinie
 - username: BadToast
   company_id: colgate-palmolive
 - username: BarryWu0812
   company_id: confluent
+- username: bconn-proteinms
+  company_id: university-of-washington
 - username: bearomorphism
   company_id: microsoft
 - username: bergman
   company_id: spotify
 - username: bethebunny
   company_id: modular
+- username: bgedik
+  company_id: unscrambl
+- username: BhavnaMogha
+  company_id: codewithbhavna
+- username: bnsblue
+  company_id: samsara
 - username: bryan-hunted
   company_id: hunted-labs
+- username: bweber-rebellion
+  company_id: rebellion-defense
 - username: ByronHsu
   company_id: xai
+- username: CalvinLeather
+  company_id: embark-vet
+- username: cameronraysmith
+  company_id: harvard-medical-school
+- username: cdreetz
+  company_id: prime-intellect
+- username: cgrass
+  company_id: mcg-health
 - username: ChickenBenny
   company_id: synology
+- username: ChickenTarm
+  company_id: adt
 - username: chrismatteson
   company_id: fermyon
 - username: ckiosidis
   company_id: spotify
 - username: claude
   company_id: anthropic
+- username: cmontemuino
+  company_id: adyen
 - username: convexquad
   company_id: lyft
 - username: cosmicbboy
   company_id: union
 - username: cpaulik
   company_id: planet
+- username: ctso
+  company_id: givebutter
 - username: DanBrunkow
   company_id: spotify
+- username: daniel-shuy
+  company_id: sicpa
 - username: danieldanciu
   company_id: cradle
+- username: danpf
+  company_id: johnson-and-johnson
 - username: dansola
   company_id: union
+- username: dashangcun
+  company_id: namecheap
+- username: DavidMertz
+  company_id: kdm-training
 - username: davidmirror-ops
   company_id: union
 - username: davidxia
   company_id: modal
 - username: ddhirajkumar
   company_id: fanatics
+- username: ddl-ebrown
+  company_id: cerebro-tech
+- username: debasisdwivedy
+  company_id: indiana-university
+- username: dejanzele
+  company_id: g-research
+- username: DenChenn
+  company_id: nycu
+- username: diranged
+  company_id: nextdoor
+- username: Dlougach
+  company_id: equilibre-technologies
 - username: dschaller
   company_id: pulumi
+- username: dudrv
+  company_id: metrans
 - username: dwo
   company_id: odyssey
 - username: dylanwilder
   company_id: spotify
+- username: edwinyyyu
+  company_id: memverge
 - username: EngHabu
   company_id: union
 - username: EraYaN
@@ -123,6 +203,8 @@ affiliations:
   company_id: summation
 - username: frsann
   company_id: wolt
+- username: fsz285
+  company_id: usu-software
 - username: gdabisias
   company_id: nvidia
 - username: georgesnelling
@@ -138,48 +220,74 @@ affiliations:
 - username: goyalankit
   company_id: linkedin
 - username: hamersaw
+  company_id: lancedb
+- username: hamersaw
   company_id: union
   # Attribution starts at his first known Flyte contribution, not a verified hire date.
   valid_from: '2021-08-17'
   valid_until: '2026-01-01'
-- username: hamersaw
-  company_id: lancedb
+- username: hampusrosvall
+  company_id: northvolt
+- username: HansBambel
+  company_id: eidu
 - username: hanzo
   company_id: lyft
+- username: HarshMN2345
+  company_id: appwrite
 - username: helenzhangyc
   company_id: shopify
 - username: hfurkanvural
   company_id: mistral
+- username: HiromuHota
+  company_id: snorkel-ai
 - username: honnix
   company_id: spotify
+- username: hoyajigi
+  company_id: lablup
+- username: huxuan
+  company_id: agibot
 - username: hylje
   company_id: quantpi
 - username: igorvalko
   company_id: lyft
 - username: itsyitsy
   company_id: nola-ventures
+- username: jasonlai1218
+  company_id: line
 - username: jaychia
   company_id: eventual
-- username: jeevb
-  company_id: union
+- username: jbrambleDC
+  company_id: local-food-group
 - username: jdoiro3
   company_id: trilliant-health
+- username: jeevb
+  company_id: union
 - username: Jeinhaus
   company_id: schueco
 - username: jeremydonahue
   company_id: ziprecruiter
+- username: jingchanglu
+  company_id: xiamen-university
 - username: jpvotta
   company_id: temporal
+- username: juandiegopalomino
+  company_id: rippling
 - username: k1sauce
   company_id: clearnote-health
 - username: katrogan
   company_id: union
 - username: kemingy
   company_id: tensorchord
+- username: kinow
+  company_id: barcelona-supercomputing-center
 - username: kosigz-lyft
   company_id: lyft
+- username: Kota-Karthik
+  company_id: iiit-lucknow
 - username: kumare3
   company_id: union
+- username: KyleShao1016
+  company_id: bitdeer
 - username: LeonKolyang
   company_id: union
 - username: live-wire
@@ -189,21 +297,27 @@ affiliations:
 - username: lu4nm3
   company_id: netflix
 - username: machichima
+  company_id: anyscale
+- username: machichima
   company_id: union
   # Attribution is bounded by her first and last known Flyte contributions,
   # not verified employment dates. The end date is exclusive.
   valid_from: '2024-11-19'
   valid_until: '2026-07-23'
-- username: machichima
-  company_id: anyscale
 - username: madiyar-wayve
   company_id: wayve
+- username: mao3267
+  company_id: uc-san-diego
 - username: mark-thm
   company_id: theorem
 - username: MattGPT-ai
   company_id: ziprecruiter
+- username: mattiadevivo
+  company_id: namecheap
 - username: maximsmol
   company_id: latchbio
+- username: mdjong1
+  company_id: the-ocean-cleanup
 - username: Mecoli1219
   company_id: linkedin
 - username: mhotan
@@ -228,8 +342,18 @@ affiliations:
   company_id: spotify
 - username: ndonyapour
   company_id: axle
+- username: neilisaur
+  company_id: lockheed-martin
+- username: nicktate
+  company_id: containership
 - username: nishantwrp
   company_id: google
+- username: NitinAgg
+  company_id: opta
+- username: noahjax
+  company_id: tako-data
+- username: noobkid2411
+  company_id: bits-pilani
 - username: oratis
   company_id: hakko
 - username: otarabai
@@ -238,21 +362,33 @@ affiliations:
   company_id: spotify
 - username: patrick-kidger
   company_id: cradle
+- username: peterxcli
+  company_id: apache-software-foundation
+- username: pimdh
+  company_id: cuspai
 - username: pingsutw
   company_id: union
 - username: pmahindrakar-oss
   company_id: union
+- username: pohanhuang
+  company_id: suse
 - username: popojk
   company_id: union
 - username: ppiegaze
   company_id: union
+- username: Pretty-19
+  company_id: tcs
+- username: punkerpunker
+  company_id: together-ai
+- username: pvditt
+  company_id: xdof
 - username: pvditt
   company_id: union
   # Attribution starts at his first known Flyte contribution, not a verified hire date.
   valid_from: '2023-11-29'
   valid_until: '2026-10-01'
-- username: pvditt
-  company_id: xdof
+- username: quinten-flwls
+  company_id: flwls
 - username: rambrus
   company_id: expedia
 - username: rbavery
@@ -261,20 +397,34 @@ affiliations:
   company_id: linkedin
 - username: ringohoffman
   company_id: google-deepmind
+- username: Ritesh-Udgata
+  company_id: bits-pilani
 - username: robert-ulbrich-mercedes-benz
   company_id: mercedes-benz
 - username: RobinKa
   company_id: runway
+- username: Rohithmatham12
+  company_id: california-state-university
 - username: RRap0so
   company_id: spotify
+- username: RRK1000
+  company_id: concordia-university
 - username: rubenbarragan
   company_id: dropbox
 - username: salotz
   company_id: examol
 - username: samhita-alla
   company_id: union
+- username: samuel-sujith
+  company_id: nokia
 - username: SandraGH5
   company_id: union
+- username: shahwar9
+  company_id: ripple
+- username: shahwarcodes
+  company_id: evenup
+- username: sighingnow
+  company_id: alibaba
 - username: SKalt
   company_id: derapi
 - username: slai
@@ -283,16 +433,30 @@ affiliations:
   company_id: linkedin
 - username: Sovietaced
   company_id: stack-av
+- username: spwoodcock
+  company_id: hotosm
+- username: stephen37
+  company_id: black-forest-labs
+- username: sugatoray
+  company_id: truist
+- username: sumana-2705
+  company_id: iit-bhu
 - username: supercharleszhu
   company_id: linkedin
 - username: SVilgelm
   company_id: union
+- username: SZL741023
+  company_id: yahoo
 - username: TeoZosa
   company_id: mercari
 - username: themavik
   company_id: mavik-labs
+- username: thomasjhuang
+  company_id: traceframe
 - username: thomasjpfan
   company_id: modal
+- username: ThomVett
+  company_id: hederadx
 - username: troychiu
   company_id: google
 - username: trutx
@@ -301,8 +465,12 @@ affiliations:
   company_id: lila-sciences
 - username: tylertitsworth
   company_id: lila-sciences
+- username: uduse
+  company_id: astrus
 - username: ursucarina
   company_id: union
+- username: VPraharsha03
+  company_id: lg-electronics
 - username: vraiyaninv
   company_id: nvidia
 - username: vvasavada-fn
@@ -311,6 +479,8 @@ affiliations:
   company_id: microsoft
 - username: wild-endeavor
   company_id: union
+- username: yarikoptic
+  company_id: dartmouth-college
 - username: Yicheng-Lu-llll
   company_id: anyscale
 - username: yindia
@@ -320,176 +490,4 @@ affiliations:
 - username: zeryx
   company_id: nvidia
 - username: zhuo-zhi
-  company_id: linkedin
-# Affiliations approved during the 2026-10-18 discovery review. These undated
-# entries attribute all recorded activity; they are not verified hire dates.
-- username: 0yukali0
-  company_id: apache-software-foundation
-- username: peterxcli
-  company_id: apache-software-foundation
-- username: dashangcun
-  company_id: namecheap
-- username: mattiadevivo
-  company_id: namecheap
-- username: huxuan
-  company_id: agibot
-- username: sighingnow
-  company_id: alibaba
-- username: ddl-ebrown
-  company_id: cerebro-tech
-- username: nicktate
-  company_id: containership
-- username: HansBambel
-  company_id: eidu
-- username: quinten-flwls
-  company_id: flwls
-- username: adarsh-jha-dev
-  company_id: humane-intelligence
-- username: hampusrosvall
-  company_id: northvolt
-- username: aminmaghsodi
-  company_id: sahab-pardaz
-- username: bnsblue
-  company_id: samsara
-- username: alykhantejani
-  company_id: sharechat
-- username: pohanhuang
-  company_id: suse
-- username: noahjax
-  company_id: tako-data
-- username: mdjong1
-  company_id: the-ocean-cleanup
-- username: ArjunSharda
-  company_id: tleem
-- username: ChickenTarm
-  company_id: adt
-- username: cmontemuino
-  company_id: adyen
-- username: austin362667
-  company_id: apple
-- username: AdrianoKF
-  company_id: appliedai-institute
-- username: HarshMN2345
-  company_id: appwrite
-- username: amitani
-  company_id: artera
-- username: uduse
-  company_id: astrus
-- username: akashgreninja
-  company_id: bangalore-institute-of-technology
-- username: kinow
-  company_id: barcelona-supercomputing-center
-- username: KyleShao1016
-  company_id: bitdeer
-- username: Ritesh-Udgata
-  company_id: bits-pilani
-- username: noobkid2411
-  company_id: bits-pilani
-- username: stephen37
-  company_id: black-forest-labs
-- username: Rohithmatham12
-  company_id: california-state-university
-- username: BhavnaMogha
-  company_id: codewithbhavna
-- username: RRK1000
-  company_id: concordia-university
-- username: pimdh
-  company_id: cuspai
-- username: yarikoptic
-  company_id: dartmouth-college
-- username: Azanul
-  company_id: denklinie
-- username: CalvinLeather
-  company_id: embark-vet
-- username: Dlougach
-  company_id: equilibre-technologies
-- username: shahwarcodes
-  company_id: evenup
-- username: dejanzele
-  company_id: g-research
-- username: ctso
-  company_id: givebutter
-- username: akarsh-jain-790
-  company_id: hackerrank
-- username: cameronraysmith
-  company_id: harvard-medical-school
-- username: ThomVett
-  company_id: hederadx
-- username: HiromuHota
-  company_id: snorkel-ai
-- username: aditya7302
-  company_id: iiit-gwalior
-- username: Kota-Karthik
-  company_id: iiit-lucknow
-- username: sumana-2705
-  company_id: iit-bhu
-- username: debasisdwivedy
-  company_id: indiana-university
-- username: Ash0807
-  company_id: its-engineering-college
-- username: danpf
-  company_id: johnson-and-johnson
-- username: DavidMertz
-  company_id: kdm-training
-- username: AyushK-101
-  company_id: kiet
-- username: hoyajigi
-  company_id: lablup
-- username: VPraharsha03
-  company_id: lg-electronics
-- username: jasonlai1218
-  company_id: line
-- username: jbrambleDC
-  company_id: local-food-group
-- username: neilisaur
-  company_id: lockheed-martin
-- username: bconn-proteinms
-  company_id: university-of-washington
-- username: cgrass
-  company_id: mcg-health
-- username: edwinyyyu
-  company_id: memverge
-- username: dudrv
-  company_id: metrans
-- username: DenChenn
-  company_id: nycu
-- username: diranged
-  company_id: nextdoor
-- username: samuel-sujith
-  company_id: nokia
-- username: NitinAgg
-  company_id: opta
-- username: cdreetz
-  company_id: prime-intellect
-- username: bweber-rebellion
-  company_id: rebellion-defense
-- username: shahwar9
-  company_id: ripple
-- username: juandiegopalomino
-  company_id: rippling
-- username: daniel-shuy
-  company_id: sicpa
-- username: Pretty-19
-  company_id: tcs
-- username: spwoodcock
-  company_id: hotosm
-- username: asoundarya96
-  company_id: thoughtworks
-- username: punkerpunker
-  company_id: together-ai
-- username: thomasjhuang
-  company_id: traceframe
-- username: sugatoray
-  company_id: truist
-- username: mao3267
-  company_id: uc-san-diego
-- username: bgedik
-  company_id: unscrambl
-- username: fsz285
-  company_id: usu-software
-- username: SZL741023
-  company_id: yahoo
-- username: jingchanglu
-  company_id: xiamen-university
-- username: 1fanwang
   company_id: linkedin

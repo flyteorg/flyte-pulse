@@ -152,7 +152,9 @@ GitHub Actions, proposing only releases that are at least 7 days old.
 
 To add a repository, add it to `config/repositories.yaml`; the next sync makes a
 full clone and collects all of its pull requests. Company and affiliation changes
-take effect on the next build; no resync is needed.
+take effect on the next build; no resync is needed. Keep `companies.yaml` sorted by
+company ID and `affiliations.yaml` by username with `pulse format-config` (tests
+fail otherwise); comments inside an entry move with it.
 
 ## Company and affiliation discovery
 
@@ -172,7 +174,9 @@ From these it proposes email domains and organization aliases for known companie
 new companies (from a single `@org` named in a profile, or an organization whose
 website is an email domain several people use), affiliations for contributors
 without one, affiliation changes (the old period ends when the new value was first
-seen), and earlier affiliations from a clean switch of email domains. Anything
+seen), and earlier affiliations from a clean switch of email domains. The current
+affiliation then starts where the earlier one ends, including an existing undated
+entry. Entries are inserted in sorted order. Anything
 ambiguous, such as several companies in one profile or a conflict with a curated
 mapping, is listed for a person instead. Values in `config/discovery.yaml` are
 never proposed again.

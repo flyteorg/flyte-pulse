@@ -8,9 +8,10 @@ use pulse_core::state::Contributor;
 
 use super::{Change, Discovery};
 use crate::companies::load_company_catalog;
+use crate::config_format::{sort_affiliations, sort_companies};
 
 /// Apply the discovery's edits to the config files after validating the result.
-pub fn apply(discovery: &Discovery, config_dir: &Path, contributors: &[Contributor], today: &str) -> Result<()> {
+pub fn apply(discovery: &Discovery, config_dir: &Path, contributors: &[Contributor]) -> Result<()> {
     let companies_path = config_dir.join("companies.yaml");
     let affiliations_path = config_dir.join("affiliations.yaml");
     let mut companies = Lines::read(&companies_path)?;
@@ -22,20 +23,17 @@ pub fn apply(discovery: &Discovery, config_dir: &Path, contributors: &[Contribut
     for mapping in &discovery.domains {
         companies.add_list_item(&mapping.company_id, "domains", &mapping.domain);
     }
-    if !discovery.companies.is_empty() {
-        companies.append(&[format!("# Proposed by company discovery on {today} from GitHub organization profiles.")]);
-        for company in &discovery.companies {
-            companies.append(&[
-                format!("- id: {}", company.id),
-                format!("  canonical_name: {}", quote(&company.canonical_name)),
-                format!("  website_url: {}", company.website_url),
-                "  aliases:".to_string(),
-                format!("  - {}", quote(&company.alias)),
-            ]);
-            if !company.domains.is_empty() {
-                companies.append(&["  domains:".to_string()]);
-                companies.append(&company.domains.iter().map(|d| format!("  - {d}")).collect::<Vec<_>>());
-            }
+    for company in &discovery.companies {
+        companies.append(&[
+            format!("- id: {}", company.id),
+            format!("  canonical_name: {}", quote(&company.canonical_name)),
+            format!("  website_url: {}", company.website_url),
+            "  aliases:".to_string(),
+            format!("  - {}", quote(&company.alias)),
+        ]);
+        if !company.domains.is_empty() {
+            companies.append(&["  domains:".to_string()]);
+            companies.append(&company.domains.iter().map(|d| format!("  - {d}")).collect::<Vec<_>>());
         }
     }
 
@@ -43,27 +41,32 @@ pub fn apply(discovery: &Discovery, config_dir: &Path, contributors: &[Contribut
     for change in &discovery.changes {
         affiliations.apply_change(change, &mut appended);
     }
+    for start in &discovery.current_starts {
+        affiliations.set_start(&start.login, &start.contributor_id, &start.company_id, &start.valid_from);
+    }
     for affiliation in &discovery.affiliations {
-        appended.push(undated(&affiliation.login, &affiliation.company_id));
+        appended.push(match &affiliation.valid_from {
+            Some(valid_from) => open_period(&affiliation.login, &affiliation.company_id, valid_from),
+            None => undated(&affiliation.login, &affiliation.company_id),
+        });
     }
     for period in &discovery.periods {
         appended.push(dated(&period.login, &period.company_id, &period.valid_from, &period.valid_until));
     }
-    if !appended.is_empty() {
-        affiliations
-            .append(&[format!("# Proposed by company discovery on {today}; merging the pull request approves them.")]);
-        for entry in appended {
-            affiliations.append(&entry);
-        }
+    for entry in appended {
+        affiliations.append(&entry);
     }
+    // New entries land in sorted position; the pull request describes them.
+    let companies = sort_companies(&companies.text());
+    let affiliations = sort_affiliations(&affiliations.text());
 
     // Validate with the same loader the build uses before touching the files.
     let staging = tempfile::tempdir()?;
-    std::fs::write(staging.path().join("companies.yaml"), companies.text())?;
-    std::fs::write(staging.path().join("affiliations.yaml"), affiliations.text())?;
+    std::fs::write(staging.path().join("companies.yaml"), &companies)?;
+    std::fs::write(staging.path().join("affiliations.yaml"), &affiliations)?;
     load_company_catalog(staging.path(), contributors).context("the proposed config edits are invalid")?;
-    std::fs::write(&companies_path, companies.text())?;
-    std::fs::write(&affiliations_path, affiliations.text())?;
+    std::fs::write(&companies_path, companies)?;
+    std::fs::write(&affiliations_path, affiliations)?;
     Ok(())
 }
 
@@ -73,6 +76,10 @@ fn quote(value: &str) -> String {
 
 fn undated(login: &str, company_id: &str) -> Vec<String> {
     vec![format!("- username: {login}"), format!("  company_id: {company_id}")]
+}
+
+fn open_period(login: &str, company_id: &str, valid_from: &str) -> Vec<String> {
+    vec![format!("- username: {login}"), format!("  company_id: {company_id}"), format!("  valid_from: '{valid_from}'")]
 }
 
 fn dated(login: &str, company_id: &str, valid_from: &str, valid_until: &str) -> Vec<String> {
@@ -188,11 +195,22 @@ impl Lines {
             .collect()
     }
 
+    /// Give a contributor's undated entry for `company_id` a start date.
+    fn set_start(&mut self, login: &str, contributor_id: &str, company_id: &str, valid_from: &str) {
+        let block = self.contributor_blocks(login, contributor_id).into_iter().find(|b| {
+            self.field(*b, "valid_from").is_none() && self.field(*b, "company_id").as_deref() == Some(company_id)
+        });
+        if let Some(block) = block {
+            let line = self.field_line(block, "company_id").unwrap_or(block.start);
+            self.lines.insert(line + 1, format!("  valid_from: '{valid_from}'"));
+        }
+    }
+
     /// End the current affiliation on the change date and start the new one.
     fn apply_change(&mut self, change: &Change, appended: &mut Vec<Vec<String>>) {
         let blocks = self.contributor_blocks(&change.login, &change.contributor_id);
         let has_undated = blocks.iter().any(|b| self.field(*b, "valid_from").is_none());
-        let open_period = blocks.iter().copied().find(|b| {
+        let open = blocks.iter().copied().find(|b| {
             self.field(*b, "valid_from").is_some_and(|from| from <= change.date)
                 && self.field(*b, "valid_until").is_none()
         });
@@ -204,7 +222,7 @@ impl Lines {
             .max()
             .unwrap_or_default();
 
-        if let Some(block) = open_period {
+        if let Some(block) = open {
             let line = self.field_line(block, "valid_from").unwrap_or(block.end - 1);
             self.lines.insert(line + 1, format!("  valid_until: '{}'", change.date));
         } else if !change.from.is_empty() && has_undated {
@@ -214,18 +232,22 @@ impl Lines {
             }
         }
 
-        // Re-find the undated block: the insert above may have shifted lines.
+        // The undated entry for the old company becomes the new company's open-ended
+        // period. Re-find it: the insert above may have shifted lines.
         let blocks = self.contributor_blocks(&change.login, &change.contributor_id);
-        let current = blocks.iter().copied().find(|b| self.field(*b, "valid_from").is_none());
+        let current = blocks.iter().copied().find(|b| {
+            self.field(*b, "valid_from").is_none() && self.field(*b, "company_id").unwrap_or_default() == change.from
+        });
         match (current, change.to.is_empty()) {
             (Some(block), false) => {
-                let key = self.lines[block.start].clone();
-                self.lines.splice(block.start..block.end, [key, format!("  company_id: {}", change.to)]);
+                let line = self.field_line(block, "company_id").unwrap_or(block.start);
+                self.lines[line] = format!("  company_id: {}", change.to);
+                self.lines.insert(line + 1, format!("  valid_from: '{}'", change.date));
             }
             (Some(block), true) => {
                 self.lines.drain(block.start..block.end);
             }
-            (None, false) => appended.push(undated(&change.login, &change.to)),
+            (None, false) => appended.push(open_period(&change.login, &change.to, &change.date)),
             (None, true) => {}
         }
     }

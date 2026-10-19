@@ -22,10 +22,13 @@ companies:
 ";
 
 const AFFILIATIONS: &str = "\
+# Reviewed affiliations.
 affiliations:
-# Curated by hand.
 - username: carol
+  # Curated by hand.
   company_id: lyft
+- username: erin
+  company_id: union
 - username: helper-bot
   company_id: lyft
 ";
@@ -84,7 +87,7 @@ fn setup() -> (tempfile::TempDir, State) {
     state.contributors.push(carol);
     // dave: unaffiliated, profile names an unknown organization.
     state.contributors.push(person("github:4", "dave", "@acme-labs"));
-    // erin: commits from lyft.com, then union.ai (an earlier affiliation), profile Union.
+    // erin: curated Union, commits from lyft.com before union.ai (an earlier affiliation).
     state.contributors.push(person("github:5", "erin", "Union"));
     state.contributors.push(person("github:6", "frank", "Student"));
     let mut bot = person("github:7", "helper-bot", "");
@@ -132,7 +135,7 @@ fn finds_companies_affiliations_and_changes() {
 
     let affiliations: Vec<(&str, &str)> =
         discovery.affiliations.iter().map(|a| (a.login.as_str(), a.company_id.as_str())).collect();
-    assert_eq!(affiliations, vec![("alice", "union"), ("bob", "union"), ("dave", "acme-labs"), ("erin", "union")]);
+    assert_eq!(affiliations, vec![("alice", "union"), ("bob", "union"), ("dave", "acme-labs")]);
 
     assert_eq!(discovery.changes.len(), 1);
     let change = &discovery.changes[0];
@@ -146,6 +149,12 @@ fn finds_companies_affiliations_and_changes() {
         .map(|p| (p.login.as_str(), p.company_id.as_str(), p.valid_from.as_str(), p.valid_until.as_str()))
         .collect();
     assert_eq!(periods, vec![("erin", "lyft", "2020-01-10", "2021-07-01")]);
+    let starts: Vec<(&str, &str, &str)> = discovery
+        .current_starts
+        .iter()
+        .map(|s| (s.login.as_str(), s.company_id.as_str(), s.valid_from.as_str()))
+        .collect();
+    assert_eq!(starts, vec![("erin", "union", "2021-07-01")]);
     assert!(discovery.review.iter().all(|r| !r.subject.contains("Student")), "ignored strings are not proposed");
     assert!(
         discovery.review.iter().any(|r| r.kind == "Bot with an affiliation" && r.subject.contains("helper-bot")),
@@ -156,32 +165,82 @@ fn finds_companies_affiliations_and_changes() {
     let report = markdown(&discovery, &catalog, None);
     assert!(report.contains("### Affiliation changes"));
     assert!(report.contains("| [@carol](https://github.com/carol) | Lyft | Union | 2026-03-08 |"));
+    assert!(report.contains("### Start dates for current affiliations"));
+    assert!(report.contains("| [@erin](https://github.com/erin) | Union | 2021-07-01 |"));
 }
 
 #[test]
-fn applies_edits_and_keeps_comments() {
+fn applies_edits_sorted_and_keeps_comments() {
     let (dir, state) = setup();
     let (discovery, _) = run_discovery(dir.path(), &state);
-    apply(&discovery, dir.path(), &state.contributors, "2026-10-18").unwrap();
+    apply(&discovery, dir.path(), &state.contributors).unwrap();
 
     let companies = std::fs::read_to_string(dir.path().join("companies.yaml")).unwrap();
-    assert!(companies.starts_with("# Reviewed companies."));
-    assert!(companies.contains("  - '@unionai'\n  domains:\n  - union.ai\n- id: lyft"));
-    assert!(companies.contains("- id: acme-labs\n  canonical_name: 'Acme Labs'\n  website_url: https://acme.dev"));
-
-    let affiliations = std::fs::read_to_string(dir.path().join("affiliations.yaml")).unwrap();
-    assert!(affiliations.contains("# Curated by hand.\n- username: carol\n  company_id: union\n"));
-    assert!(
-        affiliations
-            .contains("- username: carol\n  company_id: lyft\n  valid_from: '2025-06-01'\n  valid_until: '2026-03-08'")
+    assert_eq!(
+        companies,
+        "\
+# Reviewed companies.
+companies:
+- id: acme-labs
+  canonical_name: 'Acme Labs'
+  website_url: https://acme.dev
+  aliases:
+  - '@Acme-Labs'
+- id: lyft
+  canonical_name: Lyft
+  website_url: https://www.lyft.com
+  aliases: []
+  domains:
+  - lyft.com
+- id: union
+  canonical_name: Union
+  website_url: https://union.ai
+  aliases:
+  - '@unionai'
+  domains:
+  - union.ai
+"
     );
-    assert!(affiliations.contains("- username: erin\n  company_id: lyft\n  valid_from: '2020-01-10'"));
+
+    // Changes and earlier periods date the current entries; comments stay inside their entry.
+    let affiliations = std::fs::read_to_string(dir.path().join("affiliations.yaml")).unwrap();
+    assert_eq!(
+        affiliations,
+        "\
+# Reviewed affiliations.
+affiliations:
+- username: alice
+  company_id: union
+- username: bob
+  company_id: union
+- username: carol
+  company_id: lyft
+  valid_from: '2025-06-01'
+  valid_until: '2026-03-08'
+- username: carol
+  # Curated by hand.
+  company_id: union
+  valid_from: '2026-03-08'
+- username: dave
+  company_id: acme-labs
+- username: erin
+  company_id: lyft
+  valid_from: '2020-01-10'
+  valid_until: '2021-07-01'
+- username: erin
+  company_id: union
+  valid_from: '2021-07-01'
+- username: helper-bot
+  company_id: lyft
+"
+    );
 
     // The edited files load, and a second run finds nothing new for the applied entries.
     let catalog = load_company_catalog(dir.path(), &state.contributors).unwrap();
     assert_eq!(catalog.historical("github:3", "2026-01-01"), "lyft");
     assert_eq!(catalog.historical("github:3", "2026-04-01"), "union");
     assert_eq!(catalog.historical("github:5", "2020-06-01"), "lyft");
+    assert_eq!(catalog.historical("github:5", "2026-09-01"), "union");
     assert_eq!(catalog.domain_company("union.ai"), Some("union"));
     let again = discover(
         &state,
@@ -190,5 +249,5 @@ fn applies_edits_and_keeps_comments() {
         parse_date("2026-10-18").unwrap(),
         &HashMap::new(),
     );
-    assert!(again.affiliations.is_empty() && again.changes.is_empty() && again.domains.is_empty(), "{again:?}");
+    assert!(!again.has_edits(), "{again:?}");
 }
