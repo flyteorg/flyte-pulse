@@ -94,7 +94,7 @@ struct RepoSummary {
     merged_pull_requests: usize,
     new_commits: usize,
     seconds: u64,
-    /// Accounts that authored commits from email addresses containing "bot".
+    /// Accounts that authored commits from email addresses that say "bot".
     bot_email_authors: Vec<String>,
 }
 
@@ -291,7 +291,7 @@ pub fn run(args: SyncArgs) -> Result<()> {
     Ok(())
 }
 
-/// Accounts behind commits authored from email addresses containing "bot", such as
+/// Accounts behind commits authored from email addresses that say "bot", such as
 /// `snyk-bot@snyk.io`. Only the classification is kept, never the address.
 fn bot_email_authors(state: &State, repository_id: &str, commits: &[&GitCommit]) -> Vec<String> {
     let bot_shas: HashSet<&str> =
@@ -307,7 +307,7 @@ fn bot_email_authors(state: &State, repository_id: &str, commits: &[&GitCommit])
 }
 
 /// Classify contributors first seen in this sync as bots when their login, name, or
-/// commit email contains "bot". Existing contributors and anyone with a curated
+/// commit email says "bot". Existing contributors and anyone with a curated
 /// affiliation are left alone; discovery reports them for review instead.
 fn mark_new_bots(state: &mut State, known: &HashSet<String>, curated: &HashSet<String>, bot_emails: &HashSet<String>) {
     for contributor in state.contributors.iter_mut() {

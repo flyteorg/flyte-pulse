@@ -191,16 +191,25 @@ pub fn classify_github_account(
     ("UNKNOWN".into(), "UNKNOWN".into())
 }
 
-/// A login or display name containing "bot", such as `snyk-bot` or `goreleaserbot`. A
-/// substring match also hits names like "Talbot", so sync only applies it to new
-/// contributors without curated affiliations, and discovery reports existing ones.
+/// A login with a word ending in "bot", such as `snyk-bot` or `goreleaserbot`, or a
+/// display name with the word "bot" or "robot", such as "VMIP Robot". Names such as
+/// "Parag Ekbote" or "Botha" do not match, but a login like `talbot` still does, so
+/// sync only applies it to new contributors without curated affiliations, and
+/// discovery reports existing ones.
 pub fn bot_name(login: &str, display_name: &str) -> bool {
-    login.to_lowercase().contains("bot") || display_name.to_lowercase().contains("bot")
+    bot_word(login, true) || bot_word(display_name, false)
 }
 
-/// An email address whose local part contains "bot", such as `snyk-bot@snyk.io`.
+/// An email address whose local part has a word ending in "bot", such as `snyk-bot@snyk.io`.
 pub fn bot_email(email: &str) -> bool {
-    email.trim().rsplit_once('@').is_some_and(|(local, _)| local.to_lowercase().contains("bot"))
+    email.trim().rsplit_once('@').is_some_and(|(local, _)| bot_word(local, true))
+}
+
+/// Whether a word of `text` is "bot" or "robot", or with `suffix`, ends in "bot".
+fn bot_word(text: &str, suffix: bool) -> bool {
+    text.to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .any(|word| if suffix { word.ends_with("bot") } else { word == "bot" || word == "robot" })
 }
 
 /// Mark `contributor` as a bot unless a catalog rule or GitHub already classifies it.
@@ -242,14 +251,19 @@ mod tests {
     }
 
     #[test]
-    fn bot_substrings() {
+    fn bot_words() {
         assert!(bot_name("snyk-bot", "Snyk bot"));
         assert!(bot_name("goreleaserbot", ""));
+        assert!(bot_name("github-actions[bot]", ""));
         assert!(bot_name("someone", "VMIP Robot"));
         assert!(!bot_name("octocat", "The Octocat"));
+        assert!(!bot_name("ParagEkbote", "Parag Ekbote"));
+        assert!(!bot_name("someone", "Jan Botha"));
+        assert!(!bot_name("someone", "Ann Talbot"), "names need the whole word");
         assert!(bot_email("github+bot@snyk.io"));
         assert!(bot_email("vmip-robot@vinted.com"));
         assert!(!bot_email("ryan@wherobots.com"), "only the local part counts");
+        assert!(!bot_email("j.abbott@example.com"));
 
         let mut contributor =
             Contributor { login: "helper-bot".into(), identity_kind: "HUMAN".into(), ..Contributor::default() };
