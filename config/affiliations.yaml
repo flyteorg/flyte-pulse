@@ -47,6 +47,8 @@ affiliations:
   company_id: hackerrank
 - username: akashgreninja
   company_id: bangalore-institute-of-technology
+- username: akashkatipally
+  company_id: lyft
 - username: alykhantejani
   company_id: sharechat
 - username: aminmaghsodi
@@ -127,6 +129,8 @@ affiliations:
   company_id: fermyon
 - username: ckiosidis
   company_id: spotify
+- username: clairemcginty
+  company_id: spotify
 - username: claude
   company_id: anthropic
 - username: cmontemuino
@@ -145,6 +149,8 @@ affiliations:
   company_id: sicpa
 - username: danieldanciu
   company_id: cradle
+- username: danielsalvador
+  company_id: vinted
 - username: danpf
   company_id: johnson-and-johnson
 - username: dansola
@@ -179,10 +185,17 @@ affiliations:
   company_id: odyssey
 - username: dylanwilder
   company_id: spotify
+- username: edwardsun-union
+  company_id: union
 - username: edwinyyyu
   company_id: memverge
 - username: EngHabu
+  company_id: lyft
+  valid_from: '2019-04-09'
+  valid_until: '2020-12-04'
+- username: EngHabu
   company_id: union
+  valid_from: '2020-12-04'
 - username: EraYaN
   company_id: calcasa
 - username: farhan-uai
@@ -248,6 +261,8 @@ affiliations:
   company_id: agibot
 - username: hylje
   company_id: quantpi
+- username: iaroslav-ciupin
+  company_id: union
 - username: igorvalko
   company_id: lyft
 - username: itsyitsy
@@ -266,8 +281,12 @@ affiliations:
   company_id: schueco
 - username: jeremydonahue
   company_id: ziprecruiter
+- username: jimbobby5
+  company_id: g-research
 - username: jingchanglu
   company_id: xiamen-university
+- username: jmonty42
+  company_id: union
 - username: jpvotta
   company_id: temporal
 - username: juandiegopalomino
@@ -391,8 +410,14 @@ affiliations:
   company_id: flwls
 - username: rambrus
   company_id: expedia
+- username: ranjit-parva
+  company_id: mistral
 - username: rbavery
   company_id: wherobots
+- username: redartera
+  company_id: artera
+- username: regadas
+  company_id: spotify
 - username: RichhLi
   company_id: linkedin
 - username: ringohoffman
@@ -423,10 +448,14 @@ affiliations:
   company_id: ripple
 - username: shahwarcodes
   company_id: evenup
+- username: shayansadeghieh
+  company_id: stripe
 - username: sighingnow
   company_id: alibaba
 - username: SKalt
   company_id: derapi
+- username: skiptomyliu
+  company_id: lyft
 - username: slai
   company_id: monzo
 - username: songyang-li
@@ -435,6 +464,8 @@ affiliations:
   company_id: stack-av
 - username: spwoodcock
   company_id: hotosm
+- username: sshardool
+  company_id: linkedin
 - username: stephen37
   company_id: black-forest-labs
 - username: sugatoray
@@ -478,6 +509,8 @@ affiliations:
 - username: wayner0628
   company_id: microsoft
 - username: wild-endeavor
+  company_id: union
+- username: xjerod
   company_id: union
 - username: yarikoptic
   company_id: dartmouth-college
