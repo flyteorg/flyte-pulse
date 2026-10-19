@@ -7,3 +7,4 @@
 {"repository_id":"github.com:R_kgDOTDdKPw","provider_id":"R_kgDOTDdKPw","host":"github.com","owner":"flyteorg","name":"flyte-agent-plugins","module":"agent-plugins","status":"ACTIVE","target_branches":[{"name":"main","label":"v2"}]}
 {"repository_id":"github.com:R_kgDOTKv_Tg","provider_id":"R_kgDOTKv_Tg","host":"github.com","owner":"flyteorg","name":"flyte-sdk-ts","module":"sdk-typescript","status":"ACTIVE","target_branches":[{"name":"main","label":"v2"}]}
 {"repository_id":"github.com:R_kgDOTytOOg","provider_id":"R_kgDOTytOOg","host":"github.com","owner":"flyteorg","name":"flyte-sdk-rs","module":"sdk-rust","status":"ACTIVE","target_branches":[{"name":"main","label":"v2"}]}
+{"repository_id":"github.com:R_kgDOVO0Sgg","provider_id":"R_kgDOVO0Sgg","host":"github.com","owner":"flyteorg","name":"flyte-pulse","module":"tooling","status":"ACTIVE","target_branches":[{"name":"main","label":""}]}
