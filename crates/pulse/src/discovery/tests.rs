@@ -164,9 +164,13 @@ fn finds_companies_affiliations_and_changes() {
 
     let report = markdown(&discovery, &catalog, None);
     assert!(report.contains("### Affiliation changes"));
-    assert!(report.contains("| [@carol](https://github.com/carol) | Lyft | Union | 2026-03-08 |"));
+    assert!(report.contains("| [carol](https://github.com/carol) | Lyft | Union | 2026-03-08 |"));
     assert!(report.contains("### Start dates for current affiliations"));
-    assert!(report.contains("| [@erin](https://github.com/erin) | Union | 2021-07-01 |"));
+    assert!(report.contains("| [erin](https://github.com/erin) | Union | 2021-07-01 |"));
+    assert!(report.contains("profile company `@unionai`"), "{report}");
+    // An "@" outside code spans would notify that account from the pull request.
+    let outside_code: String = report.split('`').step_by(2).collect();
+    assert!(!outside_code.contains('@'), "{report}");
 }
 
 #[test]
