@@ -10,6 +10,7 @@ import {
   escapeHtml,
   externalLink,
   formatDate,
+  languagePanel,
   number,
   page,
   pageHead,
@@ -427,6 +428,11 @@ function repositoryDetailPage(data) {
       ["Lines added", "additions"],
       ["Lines removed", "deletions"],
     ]) +
+    languagePanel(
+      "Languages",
+      data.languages,
+      "Current code on the default branch, from GitHub’s language detection",
+    ) +
     activityPanel(data.daily) +
     `<div id="repository-company-share">${pendingPanel("Contributions by company")}</div>` +
     `<section class="panel page-section"><h2>Top contributors</h2>${table(["Contributor", "Merged PRs", "Commits"], contributors, "No contributor activity.")}</section>
@@ -501,6 +507,11 @@ function userDetailPage(data) {
       !historyLoaded && !historyFailed,
     ) +
     `<section class="page-grid contributor-repository-pies">${contributionPie("Commits authored by repository", data.repository_activity || [], "commits")}${contributionPie("Pull requests opened by repository", data.repository_activity || [], "pull_requests_opened")}${providerPie}</section>` +
+    languagePanel(
+      "Languages",
+      data.languages,
+      "Languages of the repositories this person committed to, weighted by their commits in each · selected time range",
+    ) +
     historyPanels +
     activityPanel(data.daily) +
     ""

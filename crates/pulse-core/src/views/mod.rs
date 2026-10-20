@@ -4,6 +4,7 @@
 mod activity;
 mod ai;
 mod company;
+mod languages;
 mod people;
 
 use std::collections::HashMap;

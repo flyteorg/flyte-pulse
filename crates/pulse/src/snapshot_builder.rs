@@ -203,6 +203,7 @@ pub fn build_snapshot(state: &State, companies: &CompanyCatalog, generated_at: i
             module: r.module.clone(),
             status: r.status.clone(),
             target_branches: r.target_branches.clone(),
+            languages: r.languages.clone(),
         })
         .collect();
     let repo_index: HashMap<&str, u32> =

@@ -1,5 +1,5 @@
 import { getJson, snapshotMeta } from "./api.js";
-import { NEUTRAL_CHART_COLOR, chartColor, formatStamp } from "./common.js";
+import { NEUTRAL_CHART_COLOR, chartColor, formatStamp, languagePanel } from "./common.js";
 import { PulseLoading } from "./loading.js";
 import { currentRoute, replaceParams } from "./route.js";
 
@@ -492,6 +492,11 @@ export function mountOverview(root) {
         PulseLoading.region($(id), false);
       drawChart(data.daily);
       drawRepositoryPie(data.repository_activity);
+      $("languages-content").innerHTML = languagePanel(
+        "Languages",
+        data.languages,
+        "Current code in the selected repositories, from GitHub’s language detection",
+      );
       if (contributorKind === "AI") void loadAIContributors(data);
       else renderContributors(data);
       renderTable("repositories-table", "repositories-empty", data.repository_activity, [

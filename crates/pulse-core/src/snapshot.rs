@@ -7,9 +7,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::state::TargetBranch;
+use crate::state::{Language, TargetBranch};
 
-pub const MAGIC: &[u8; 8] = b"PULSE\x00\x00\x01";
+pub const MAGIC: &[u8; 8] = b"PULSE\x00\x00\x02";
 pub const NONE: u32 = u32::MAX;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -53,6 +53,7 @@ pub struct Repo {
     pub module: String,
     pub status: String,
     pub target_branches: Vec<TargetBranch>,
+    pub languages: Vec<Language>,
 }
 
 impl Repo {

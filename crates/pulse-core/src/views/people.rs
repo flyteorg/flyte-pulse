@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 
 use super::activity::sort_by_score;
 use super::company::profile_affiliations;
+use super::languages::language_rows;
 use super::{Ordered, Totals, View, date_str, day_of, days_value, fold, in_range, iso};
 use crate::snapshot::{MetricKind, NONE};
 
@@ -151,6 +152,16 @@ impl View<'_> {
             }
             repository_metrics.entry((row.repo, row.branch)).or_default().add(row.kind, row.value);
         }
+        // Languages of the repositories this person committed to, weighted by their commits.
+        let mut commits_by_repo: HashMap<u32, i64> = HashMap::new();
+        for row in &global_rows {
+            if row.kind == MetricKind::Commits && selected_ok(row.repo) && row.date >= start && row.date <= today {
+                *commits_by_repo.entry(row.repo).or_default() += row.value;
+            }
+        }
+        let languages = language_rows(
+            commits_by_repo.iter().map(|(&repo, &commits)| (&data.repo(repo).languages[..], commits as f64)),
+        );
 
         let mut options: Vec<u32> = repository_options.iter().copied().collect();
         options.sort_by_key(|r| fold(&data.repo(*r).full_name()));
@@ -279,6 +290,7 @@ impl View<'_> {
             "filters": {"days": days_value(days), "repository_id": repository_id.unwrap_or("")},
             "repository_options": options.iter().map(|r| json!({"id": data.repo(*r).id, "name": data.repo(*r).full_name()})).collect::<Vec<_>>(),
             "repository_activity": repository_activity,
+            "languages": languages,
             "ai_usage": ai_usage,
             "ai_provider_lines": ai_provider_lines,
             "pull_requests": pull_requests,

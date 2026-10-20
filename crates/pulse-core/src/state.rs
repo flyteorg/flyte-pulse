@@ -44,6 +44,21 @@ pub struct Repository {
     pub module: String,
     pub status: String,
     pub target_branches: Vec<TargetBranch>,
+    /// GitHub's language breakdown of the default branch, largest first.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub languages: Vec<Language>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub languages_observed_at: Option<Ts>,
+}
+
+/// Bytes of code in one language, as GitHub's language detection reports it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Language {
+    pub name: String,
+    /// Hex color GitHub uses for the language, such as `#00ADD8`; may be empty.
+    pub color: String,
+    pub bytes: u64,
 }
 
 /// A run of identical profile company values: first seen at `observed_at`, last

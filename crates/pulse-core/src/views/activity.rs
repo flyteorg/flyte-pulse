@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use serde_json::{Value, json};
 
+use super::languages::{by_size, language_rows};
 use super::{Dataset, Ordered, Totals, View, date_str, day_of, days_value, fold, in_range, iso};
 use crate::snapshot::{MetricKind, NONE};
 
@@ -287,6 +288,14 @@ impl View<'_> {
         }
         sort_by_score(&mut repository_activity, |v| int(v, "pull_requests_merged") + int(v, "commits"));
 
+        // Code size by language for the repositories in view.
+        let language_repos: Vec<u32> = match (scope, repo_filter) {
+            (_, Some(Some(repo))) | (Scope::Repo(repo) | Scope::RepoBranch(repo, _), None) => vec![repo],
+            (Scope::All, None) => (0..data.snapshot.repositories.len() as u32).collect(),
+            (_, Some(None)) => Vec::new(),
+        };
+        let languages = language_rows(language_repos.iter().map(|&r| by_size(&data.repo(r).languages)));
+
         let mut repository_options: Vec<&crate::snapshot::Repo> = data.snapshot.repositories.iter().collect();
         repository_options.sort_by(|a, b| a.id.cmp(&b.id));
         let meta = &data.snapshot.meta;
@@ -314,6 +323,7 @@ impl View<'_> {
             "new_top_contributors": new_top.into_iter().map(|(_, v)| v).collect::<Vec<_>>(),
             "ai_top_contributors": [],
             "repository_activity": repository_activity,
+            "languages": languages,
         })
     }
 
@@ -388,6 +398,7 @@ impl View<'_> {
             "summary": activity["summary"],
             "daily": activity["daily"],
             "top_contributors": activity["top_contributors"],
+            "languages": activity["languages"],
             "recent_pull_requests": recent,
         }))
     }
