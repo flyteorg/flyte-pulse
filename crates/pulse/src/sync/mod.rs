@@ -393,6 +393,14 @@ fn sync_repository(state: &mut State, github: &mut GitHub, ctx: &RepoContext<'_>
         state.pull_request_commits.retain(|r| r.repository_id != repository_id);
         state.watermarks.retain(|w| w.repository_id != repository_id);
     }
+    // Languages are refreshed every sync; a failed lookup keeps the previous breakdown.
+    let (languages, languages_observed_at) = match github.repository_languages(&spec.owner, &spec.name) {
+        Ok(languages) => (languages, Some(ctx.started)),
+        Err(error) => {
+            println!("::warning::Could not read the languages of {}: {error:#}", spec.full_name());
+            existing.as_ref().map(|r| (r.languages.clone(), r.languages_observed_at)).unwrap_or_default()
+        }
+    };
     state.repositories.retain(|r| r.repository_id != repository_id && !same_repo(r));
     state.repositories.push(Repository {
         repository_id: repository_id.clone(),
@@ -403,6 +411,8 @@ fn sync_repository(state: &mut State, github: &mut GitHub, ctx: &RepoContext<'_>
         module: spec.module.clone(),
         status: spec.status.clone(),
         target_branches: spec.target_branches.clone(),
+        languages,
+        languages_observed_at,
     });
 
     let watermark = state.watermark(&repository_id).cloned().unwrap_or_default();

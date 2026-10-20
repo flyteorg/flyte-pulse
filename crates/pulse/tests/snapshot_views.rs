@@ -5,7 +5,9 @@ use std::path::Path;
 use pulse::companies::load_company_catalog;
 use pulse::snapshot_builder::build_snapshot;
 use pulse_core::snapshot::Snapshot;
-use pulse_core::state::{Commit, Contributor, PullRequest, PullRequestCommit, Repository, State, TargetBranch};
+use pulse_core::state::{
+    Commit, Contributor, Language, PullRequest, PullRequestCommit, Repository, State, TargetBranch,
+};
 use pulse_core::time::{Ts, day_of, parse_timestamp};
 use pulse_core::views::Dataset;
 use serde_json::Value;
@@ -40,6 +42,10 @@ fn state() -> State {
                 TargetBranch { name: "main".into(), label: "v2".into() },
                 TargetBranch { name: "master".into(), label: "v1".into() },
             ],
+            languages: vec![
+                Language { name: "Go".into(), color: "#00ADD8".into(), bytes: 750 },
+                Language { name: "Python".into(), color: "#3572A5".into(), bytes: 250 },
+            ],
             ..Repository::default()
         },
         Repository {
@@ -48,6 +54,7 @@ fn state() -> State {
             name: "flytekit".into(),
             status: "ACTIVE".into(),
             target_branches: vec![TargetBranch { name: "master".into(), label: "v1".into() }],
+            languages: vec![Language { name: "Python".into(), color: "#3572A5".into(), bytes: 1000 }],
             ..Repository::default()
         },
     ];
@@ -160,6 +167,28 @@ fn ai_attribution_from_trailers() {
     let claude = get(&data, "/api/ai-contributors/provider%3Aclaude?provider=Claude&days=all");
     assert_eq!(claude["summary"]["commits_ai_coauthored"], 1);
     assert_eq!(claude["summary"]["shared_additions"], 10);
+}
+
+#[test]
+fn language_breakdowns() {
+    let data = dataset();
+    let names = |value: &Value| -> Vec<(String, f64)> {
+        value["languages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|l| (l["name"].as_str().unwrap().to_string(), l["share"].as_f64().unwrap()))
+            .collect()
+    };
+    // Overview sums code size: 750 Go and 1,250 Python bytes.
+    let overview = get(&data, "/api/dashboard?days=30");
+    assert_eq!(names(&overview), [("Python".to_string(), 0.625), ("Go".to_string(), 0.375)]);
+    let repo = get(&data, "/api/repositories/github.com%3AR1?days=365");
+    assert_eq!(names(&repo), [("Go".to_string(), 0.75), ("Python".to_string(), 0.25)]);
+    assert_eq!(repo["languages"][0]["color"], "#00ADD8");
+    // Contributors get the languages of the repositories they committed to.
+    let alice = get(&data, "/api/users/github%3A1?days=all");
+    assert_eq!(names(&alice)[0].0, "Go");
 }
 
 #[test]

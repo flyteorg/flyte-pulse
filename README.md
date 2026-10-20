@@ -48,8 +48,9 @@ GitHub Actions (daily)                          GitHub Pages
   the shallow boundary, the fetch is deepened and the range recomputed.
 - **The GraphQL API is used only for what Git cannot provide:** pull request
   metadata (about one point per 100 PRs), batched lookups of commit emails without
-  a known account, and a 90-day public profile refresh. Emails are never stored;
-  the state keeps a truncated SHA-256 per email.
+  a known account, a 90-day public profile refresh, and each repository's language
+  breakdown (one point per repository per sync). Emails are never stored; the state
+  keeps a truncated SHA-256 per email.
 - Identifiers are stable across syncs: repositories are `github.com:<node id>`,
   people are `github:<account id>`, and pull requests use GitHub's numeric IDs.
 
@@ -110,9 +111,9 @@ that toolchain with the `wasm32-unknown-unknown` target on first use.
 version in `Cargo.lock` (for example `cargo install wasm-bindgen-cli --version
 0.2.129 --locked`); `wasm-opt` (binaryen) is used when present.
 
-The views are plain ES modules with no runtime dependencies. ESLint and Prettier
-check them: `npm ci`, then `npm run lint` and `npm run format:check`
-(`npm run format` fixes formatting).
+The views are plain ES modules with no runtime dependencies. ESLint checks the
+JavaScript and Prettier the JavaScript, HTML, and CSS: `npm ci`, then
+`npm run lint` and `npm run format:check` (`npm run format` fixes formatting).
 
 ### Seeding (one time)
 

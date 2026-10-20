@@ -227,6 +227,31 @@ export function contributionPie(
   </article>`;
 }
 
+// A language breakdown as a stacked bar with a legend; `share` values are fractions.
+export function languagePanel(title, languages, subtitle) {
+  const rows = (languages || []).filter((row) => row.share > 0);
+  const heading = `<div class="panel-head"><div><h2>${escapeHtml(title)}</h2><div class="subtitle">${escapeHtml(subtitle)}</div></div></div>`;
+  if (!rows.length) {
+    return `<section class="panel page-section language-panel">${heading}<div class="empty">No language data yet.</div></section>`;
+  }
+  const color = (row) => (/^#[0-9a-f]{3,8}$/i.test(row.color) ? row.color : NEUTRAL_CHART_COLOR);
+  const percent = (share) => (share < 0.001 ? "<0.1%" : `${(share * 100).toFixed(1)}%`);
+  const label = rows.map((row) => `${row.name} ${percent(row.share)}`).join(", ");
+  const bar = rows
+    .map(
+      (row) =>
+        `<span style="--language-color:${color(row)};flex-grow:${row.share}" title="${escapeHtml(row.name)} ${percent(row.share)}"></span>`,
+    )
+    .join("");
+  const legend = rows
+    .map(
+      (row) =>
+        `<li><span class="language-key" style="--language-color:${color(row)}"></span><span class="language-name">${escapeHtml(row.name)}</span><span class="language-share">${percent(row.share)}</span></li>`,
+    )
+    .join("");
+  return `<section class="panel page-section language-panel">${heading}<div class="language-bar" role="img" aria-label="${escapeHtml(label)}">${bar}</div><ul class="language-legend">${legend}</ul></section>`;
+}
+
 export function rangeStamp(days) {
   return days === "all" ? "All available data" : `Last ${days} days`;
 }

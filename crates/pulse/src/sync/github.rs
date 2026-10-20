@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow, bail};
+use pulse_core::state::Language;
 use pulse_core::time::parse_timestamp;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -215,6 +216,17 @@ impl GitHub {
             .as_str()
             .map(str::to_string)
             .ok_or_else(|| anyhow!("repository {owner}/{name} was not found"))
+    }
+
+    /// The default branch's languages by size, largest first.
+    pub fn repository_languages(&mut self, owner: &str, name: &str) -> Result<Vec<Language>> {
+        let response = self.query(
+            "query($owner:String!,$name:String!){rateLimit{cost remaining resetAt} repository(owner:$owner,name:$name)\
+             {languages(first:100,orderBy:{field:SIZE,direction:DESC}){edges{size node{name color}}}}}",
+            json!({ "owner": owner, "name": name }),
+        )?;
+        response.check(false)?;
+        Ok(parse_languages(&response.data["repository"]["languages"]))
     }
 
     pub fn pull_request_page(
@@ -450,9 +462,39 @@ pub struct Actor {
     pub company: Option<String>,
 }
 
+fn parse_languages(connection: &Value) -> Vec<Language> {
+    connection["edges"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|edge| Language {
+            name: edge["node"]["name"].as_str().unwrap_or_default().to_string(),
+            color: edge["node"]["color"].as_str().unwrap_or_default().to_string(),
+            bytes: edge["size"].as_u64().unwrap_or_default(),
+        })
+        .filter(|language| !language.name.is_empty())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_languages() {
+        let connection = json!({"edges": [
+            {"size": 1200, "node": {"name": "Go", "color": "#00ADD8"}},
+            {"size": 30, "node": {"name": "Smarty", "color": null}},
+        ]});
+        let languages = parse_languages(&connection);
+        assert_eq!(languages.len(), 2);
+        assert_eq!(
+            (languages[0].name.as_str(), languages[0].color.as_str(), languages[0].bytes),
+            ("Go", "#00ADD8", 1200)
+        );
+        assert_eq!(languages[1].color, "");
+        assert!(parse_languages(&Value::Null).is_empty());
+    }
 
     #[test]
     fn pull_request_node_ids_and_authors() {

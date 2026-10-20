@@ -74,7 +74,8 @@
 }
 
 :root {
-  --font: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+  --font:
+    "Instrument Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --radius-small: 0.75rem;
@@ -971,6 +972,57 @@ tbody tr:hover td {
 
 .project-pie-panel {
   min-width: 0;
+}
+
+/* Languages */
+
+.language-bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  margin: 16px 0 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-hover);
+}
+
+.language-bar > span {
+  flex-basis: 0;
+  min-width: 2px;
+  background: var(--language-color);
+}
+
+.language-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.language-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.language-key {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--language-color);
+}
+
+.language-name {
+  color: var(--heading);
+  font-weight: 600;
+}
+
+.language-share {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .project-pie-content {
