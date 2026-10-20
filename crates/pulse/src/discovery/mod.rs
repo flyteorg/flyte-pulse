@@ -342,16 +342,16 @@ fn is_human(contributor: &Contributor) -> bool {
 // report links accounts without "@" and quotes profile text in code spans.
 
 fn profile_link(contributor: &Contributor) -> String {
-    account_link(&contributor.login)
+    github_link(&contributor.login)
 }
 
 /// A link to a GitHub user or organization.
-fn account_link(login: &str) -> String {
+fn github_link(login: &str) -> String {
     format!("[{login}](https://github.com/{login})")
 }
 
-fn account_links(logins: &[String]) -> String {
-    logins.iter().map(|l| account_link(l)).collect::<Vec<_>>().join(", ")
+fn github_links(logins: &[String]) -> String {
+    logins.iter().map(|l| github_link(l)).collect::<Vec<_>>().join(", ")
 }
 
 /// Free-form text, such as a profile company, as a code span inside a table cell.
@@ -556,7 +556,7 @@ pub fn discover(
             Some(org) => {
                 let evidence = format!(
                     "GitHub organization {} with website {}; {summary}",
-                    account_link(&org.login),
+                    github_link(&org.login),
                     url_host(&org.website_url)
                 );
                 let existing = [&org.name, &org.login]
@@ -652,7 +652,7 @@ pub fn discover(
                     alias: format!("@{}", org.login),
                     domains: Vec::new(),
                     logins: users,
-                    evidence: format!("GitHub organization {}", account_link(&org.login)),
+                    evidence: format!("GitHub organization {}", github_link(&org.login)),
                 });
             }
             None => discovery.review.push(ReviewItem {
@@ -665,7 +665,7 @@ pub fn discover(
                     } else {
                         "not a GitHub organization"
                     },
-                    account_links(&users)
+                    github_links(&users)
                 ),
             }),
         }
@@ -741,7 +741,7 @@ pub fn discover(
             Some((company.clone(), format!("profile company {}", code(profile))))
         } else if org_companies.len() == 1 {
             let (company, org) = org_companies.iter().next().expect("one entry");
-            Some((company.clone(), format!("public member of {}", account_link(org))))
+            Some((company.clone(), format!("public member of {}", github_link(org))))
         } else {
             latest_domain.map(|(company, run)| (company.clone(), domain_evidence(run)))
         };
@@ -931,7 +931,7 @@ pub fn discover(
         discovery.review.push(ReviewItem {
             kind: "Unmatched profile company",
             subject: code(&profile),
-            detail: account_links(&logins),
+            detail: github_links(&logins),
         });
     }
     discovery
@@ -966,7 +966,7 @@ pub fn markdown(discovery: &Discovery, catalog: &CompanyCatalog, applied: Option
         );
         for c in &discovery.companies {
             let named =
-                if c.logins.is_empty() { String::new() } else { format!("; named by {}", account_links(&c.logins)) };
+                if c.logins.is_empty() { String::new() } else { format!("; named by {}", github_links(&c.logins)) };
             let _ = writeln!(
                 out,
                 "| {} (`{}`) | {} | `{}` | {} | {}{named} |",
@@ -983,7 +983,7 @@ pub fn markdown(discovery: &Discovery, catalog: &CompanyCatalog, applied: Option
     if !discovery.aliases.is_empty() {
         let _ = writeln!(out, "### Company aliases\n\n| Alias | Company | Named by |\n|---|---|---|");
         for a in &discovery.aliases {
-            let _ = writeln!(out, "| `{}` | {} | {} |", a.alias, name(&a.company_id), account_links(&a.logins));
+            let _ = writeln!(out, "| `{}` | {} | {} |", a.alias, name(&a.company_id), github_links(&a.logins));
         }
         out.push('\n');
     }
