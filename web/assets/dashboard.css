@@ -706,6 +706,21 @@ tbody tr:last-child td {
   border-bottom: 0;
 }
 
+/* About ten rows (13px text at 1.5 line height, 24px padding, 1px border), then
+   scroll; the header stays visible. */
+.table-scroll {
+  max-height: calc(38px + 10 * 44.5px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+
 tbody tr:hover td {
   background: color-mix(in srgb, var(--surface-hover) 45%, transparent);
 }
