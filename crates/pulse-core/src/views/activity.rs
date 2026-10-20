@@ -197,7 +197,9 @@ impl View<'_> {
             }
             totals.add(row.kind, row.value);
             daily.entry(row.date).or_default().add(row.kind, row.value);
-            if row.key != NONE {
+            // AI attribution keys (`ai-model:`, `ai-provider:`) carry shared diff metrics
+            // for the AI views; they are not contributors.
+            if data.person(row.key).is_some() {
                 contributor_totals.entry(row.key).add(row.kind, row.value);
             }
             repository_totals.entry(row.repo).add(row.kind, row.value);

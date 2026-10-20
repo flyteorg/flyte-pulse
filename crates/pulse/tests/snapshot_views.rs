@@ -142,6 +142,9 @@ fn overview_counts_human_activity() {
     assert!(names.contains(&"flyteorg/flyte · v2") && names.contains(&"flyteorg/flyte · v1"), "{names:?}");
     let bob = overview["human_top_contributors"].as_array().unwrap().iter().find(|c| c["id"] == "github:2").unwrap();
     assert_eq!(bob["shared_additions"], 10, "co-authors share the merged PR's lines");
+    let ids: Vec<&str> =
+        overview["top_contributors"].as_array().unwrap().iter().map(|c| c["id"].as_str().unwrap()).collect();
+    assert!(ids.iter().all(|id| !id.starts_with("ai-")), "AI attribution keys are not contributors: {ids:?}");
 }
 
 #[test]
