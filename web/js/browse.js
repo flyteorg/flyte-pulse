@@ -223,8 +223,10 @@ function contributorTable(users, query, view, days, repositoryId, sortKey, sortD
         `<th aria-sort="${sortKey === key ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}"><button type="button" class="sort-button" data-contributor-sort="${key}" data-contributor-view="${view}">${label}<span aria-hidden="true">${sortKey === key ? (sortDirection === "asc" ? " ↑" : " ↓") : ""}</span></button></th>`,
     )
     .join("");
+  // New contributors can be many in a long range; that list scrolls after ten rows.
+  const wrapClass = view === "new" ? "table-wrap table-scroll" : "table-wrap";
   const body = rows.length
-    ? `<div class="table-wrap"><table><thead><tr>${headings}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`
+    ? `<div class="${wrapClass}"><table><thead><tr>${headings}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`
     : `<div class="empty">${escapeHtml(emptyText)}</div>`;
   return `<div class="subtitle contributor-list-count">${number.format(matchingUsers.length)} ${view === "new" ? "new " : ""}contributors</div>${body}`;
 }
