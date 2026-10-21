@@ -39,26 +39,18 @@ import { column, dataTable } from "./components/table.js";
 import { PulseLoading } from "./loading.js";
 import { currentRoute, replaceParams } from "./route.js";
 
+// The list order matches the highlight cards: contribution views from broadest to
+// narrowest, then reviews, then AI.
 const KINDS = {
-  HUMAN: {
-    label: "Human",
-    title: "Top human contributors",
+  ALL: {
+    label: "All",
+    title: "Top contributors",
     subtitle: "Line changes are shared across the PR author and recognized co-authors",
     rows: "human_top_contributors",
     sort: "pull_requests_merged",
     columns: () => contributorColumns(),
     noun: "contributors",
-    empty: "No human contributor activity in this range.",
-  },
-  NEW: {
-    label: "New",
-    title: "New contributors",
-    subtitle: "First recorded contribution in the selected range and repository",
-    rows: "new_top_contributors",
-    sort: "pull_requests_merged",
-    columns: () => contributorColumns({ first: true }),
-    noun: "new contributors",
-    empty: "No new contributors in this range.",
+    empty: "No contributor activity in this range.",
   },
   COMMUNITY: {
     label: "Community",
@@ -71,15 +63,15 @@ const KINDS = {
     noun: "community contributors",
     empty: "No community contributions in this range.",
   },
-  AI: {
-    label: "AI",
-    title: "Top AI contributors",
-    subtitle: "AI line changes are shared across each recognized AI identity",
-    rows: "ai_top_contributors",
-    sort: "commits_with_ai",
-    columns: aiModelColumns,
-    noun: "AI identities",
-    empty: "No recognized AI attribution in this range.",
+  NEW: {
+    label: "New",
+    title: "New contributors",
+    subtitle: "First recorded contribution in the selected range and repository",
+    rows: "new_top_contributors",
+    sort: "pull_requests_merged",
+    columns: () => contributorColumns({ first: true }),
+    noun: "new contributors",
+    empty: "No new contributors in this range.",
   },
   REVIEWERS: {
     label: "Reviewers",
@@ -92,6 +84,16 @@ const KINDS = {
     noun: "reviewers",
     empty: "No reviews in this range.",
   },
+  AI: {
+    label: "AI",
+    title: "Top AI contributors",
+    subtitle: "AI line changes are shared across each recognized AI identity",
+    rows: "ai_top_contributors",
+    sort: "commits_with_ai",
+    columns: aiModelColumns,
+    noun: "AI identities",
+    empty: "No recognized AI attribution in this range.",
+  },
 };
 
 // Community activity is what people did while not at a maintainer company.
@@ -103,7 +105,7 @@ function maintainers(data) {
 function communityScope(data) {
   return data.maintainer_companies?.length
     ? `Activity while not affiliated with ${maintainers(data)}`
-    : "Every human contributor; no maintainer company is configured";
+    : "Every contributor; no maintainer company is configured";
 }
 
 // The first row of `rows` sorted by `key` like a table column: largest first, ties by name.
@@ -123,10 +125,10 @@ function highlightCards(data) {
   // Each card shows the first row of its list in that list's default order.
   const first = (kind, name) => leader(data[KINDS[kind].rows], KINDS[kind].sort, name);
   const ranking = (kind) =>
-    `<button type="button" class="link-button" data-ranking="${kind}" data-ranking-sort="${KINDS[kind].sort}">See ranking</button>`;
+    `<button type="button" class="link-button" data-ranking="${kind}">See ranking</button>`;
   const merged = (row, none) =>
     row ? count(row.pull_requests_merged, "merged PR", "merged PRs") : none;
-  const top = first("HUMAN");
+  const top = first("ALL");
   const community = first("COMMUNITY");
   const reviewer = first("REVIEWERS");
   const newcomer = first("NEW");
@@ -137,7 +139,7 @@ function highlightCards(data) {
       label: "Top contributor",
       subject: person(top),
       value: merged(top, "No merged PRs in this range"),
-      action: ranking("HUMAN"),
+      action: ranking("ALL"),
     },
     {
       label: "Top community contributor",
@@ -147,20 +149,20 @@ function highlightCards(data) {
       action: ranking("COMMUNITY"),
     },
     {
-      label: "Top reviewer",
-      subject: person(reviewer),
-      value: reviewer
-        ? count(reviewer.reviews, "PR reviewed", "PRs reviewed")
-        : "No reviews in this range",
-      action: ranking("REVIEWERS"),
-    },
-    {
       label: "Top new contributor",
       subject: person(newcomer),
       value: newcomer
         ? `${merged(newcomer)} · first on ${formatDate(newcomer.first_contribution_date)}`
         : "No merged PRs from new contributors",
       action: ranking("NEW"),
+    },
+    {
+      label: "Top reviewer",
+      subject: person(reviewer),
+      value: reviewer
+        ? count(reviewer.reviews, "PR reviewed", "PRs reviewed")
+        : "No reviews in this range",
+      action: ranking("REVIEWERS"),
     },
     {
       label: "Most used AI model",
@@ -184,13 +186,13 @@ function summaryCards(summary, newContributorsHref, pending = false) {
     summary,
     [
       [
-        "Active human contributors",
+        "Active contributors",
         "active_human_contributors",
         undefined,
         { note: "GitHub identities classified as human" },
       ],
       [
-        "New human contributors",
+        "New contributors",
         "new_human_contributors",
         undefined,
         { note: "first recorded activity in selected range", href: newContributorsHref },
@@ -216,7 +218,7 @@ function summaryCards(summary, newContributorsHref, pending = false) {
 // Render the overview into `root` and return a cleanup function for navigation away.
 export function mountOverview(root) {
   const params = currentRoute().params;
-  let kind = "HUMAN";
+  let kind = "ALL";
   let query = params.get("q") || "";
   let currentData = null;
   let active = true;
@@ -407,11 +409,11 @@ export function mountOverview(root) {
     if (!currentData) return;
     const ranking = event.target.closest("[data-ranking]");
     if (ranking) {
-      // Open the leader's list sorted by the highlighted metric.
+      // Open the leader's list in its default order, the card's metric.
       const table = `overview-${ranking.dataset.ranking.toLowerCase()}`;
       const values = currentRoute().params;
-      values.set(`${table}_sort`, ranking.dataset.rankingSort);
-      values.set(`${table}_dir`, "desc");
+      values.delete(`${table}_sort`);
+      values.delete(`${table}_dir`);
       replaceParams(values);
       showKind(ranking.dataset.ranking);
       $("overview-contributors").scrollIntoView({ behavior: "smooth", block: "start" });
