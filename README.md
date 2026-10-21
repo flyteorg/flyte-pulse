@@ -83,6 +83,10 @@ Counting rules:
   of merged pull requests (not bot-authored) with such a review before the merge;
   time to first review runs from opening, including time as a draft, to that
   review.
+- Community activity is human activity on days when the person's credited company
+  (the same dated affiliation as company credit) is not a maintainer, marked
+  `maintainer: true` in `companies.yaml` (Union). The overview's Community list and
+  "Top community contributor" highlight use it.
 - The site is public and has no login. It shows public GitHub activity and the
   reviewed company mappings from `config/`.
 

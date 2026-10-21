@@ -174,6 +174,20 @@ export function reviewPanel(summary, subtitle) {
   });
 }
 
+// Leaders in the selected range. `items` are { label, subject, value, note?, action? }:
+// `subject` is the leader's HTML (a link), `action` extra HTML such as a ranking link.
+const TROPHY =
+  '<svg class="highlight-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v5a5 5 0 0 1-10 0V3Z"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M12 13v4"/><path d="M8 21h8l-1-4H9l-1 4Z"/></svg>';
+
+export function highlights(items) {
+  return `<section class="cards summary-cards highlight-cards" aria-label="Highlights">${items
+    .map(
+      ({ label, subject, value, note = "", action = "" }) =>
+        `<article class="card highlight-card"><div class="card-label highlight-label">${TROPHY}${escapeHtml(label)}</div><div class="highlight-subject">${subject || "—"}</div><div class="highlight-value">${escapeHtml(value)}</div>${note ? `<div class="card-note">${escapeHtml(note)}</div>` : ""}${action}</article>`,
+    )
+    .join("")}</section>`;
+}
+
 export function rangeStamp(days) {
   return days === "all" ? "All available data" : `Last ${days} days`;
 }

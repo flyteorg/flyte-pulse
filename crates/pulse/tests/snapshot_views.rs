@@ -171,6 +171,10 @@ fn overview_counts_human_activity() {
     let ids: Vec<&str> =
         overview["top_contributors"].as_array().unwrap().iter().map(|c| c["id"].as_str().unwrap()).collect();
     assert!(ids.iter().all(|id| !id.starts_with("ai-")), "AI attribution keys are not contributors: {ids:?}");
+    let community: Vec<&str> =
+        overview["community_top_contributors"].as_array().unwrap().iter().map(|c| c["id"].as_str().unwrap()).collect();
+    assert_eq!(community, ["github:2"], "Alice works at Union, the maintainer company");
+    assert_eq!(overview["maintainer_companies"], serde_json::json!(["Union"]));
 }
 
 #[test]

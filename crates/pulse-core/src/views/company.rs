@@ -64,6 +64,7 @@ impl View<'_> {
             canonical_name: "Independent".into(),
             aliases: Vec::new(),
             website_url: String::new(),
+            maintainer: false,
         };
         let mut companies: Vec<&Company> = data.snapshot.companies.iter().collect();
         companies.push(&independent);

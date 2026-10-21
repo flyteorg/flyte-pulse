@@ -31,6 +31,10 @@ struct CompanyRow {
     /// Corporate email domains of the company's employees.
     #[serde(default)]
     domains: Vec<String>,
+    /// The company maintains the project; activity while affiliated with it is not
+    /// community activity.
+    #[serde(default)]
+    maintainer: bool,
 }
 
 #[derive(Deserialize)]
@@ -123,6 +127,37 @@ impl CompanyCatalog {
     /// Company credited for activity on `day`; empty means Independent.
     pub fn historical(&self, contributor_id: &str, day: &str) -> String {
         self.effective(contributor_id, day).map(|row| row.company_id.clone()).unwrap_or_default()
+    }
+
+    /// Day ranges (`[start, end)`) in which the contributor's credited company is a
+    /// maintainer, merged and in order.
+    pub fn maintainer_days(&self, contributor_id: &str) -> Vec<(i32, i32)> {
+        let maintainer =
+            |row: &Affiliation| self.by_id.get(&row.company_id).is_some_and(|&i| self.companies[i].maintainer);
+        let fallback = self.current.get(contributor_id).is_some_and(maintainer);
+        let mut ranges: Vec<(i32, i32)> = Vec::new();
+        let mut add = |start: i32, end: i32| match ranges.last_mut() {
+            _ if start >= end => {}
+            Some(last) if last.1 == start => last.1 = end,
+            _ => ranges.push((start, end)),
+        };
+        // Dated periods first; the undated mapping covers the days between them.
+        let mut cursor = i32::MIN;
+        for row in self.periods.get(contributor_id).into_iter().flatten() {
+            let start = parse_date(&row.valid_from).unwrap_or(i32::MIN);
+            let end = parse_date(&row.valid_until).unwrap_or(i32::MAX);
+            if fallback {
+                add(cursor, start);
+            }
+            if maintainer(row) {
+                add(start, end);
+            }
+            cursor = end;
+        }
+        if fallback {
+            add(cursor, i32::MAX);
+        }
+        ranges
     }
 
     /// The contributor's current affiliation as shown on profile pages.
@@ -218,7 +253,13 @@ pub fn load_company_catalog(config_dir: &Path, contributors: &[Contributor]) -> 
             }
         }
         catalog.by_id.insert(id.clone(), catalog.companies.len());
-        catalog.companies.push(Company { id, canonical_name: name, aliases: row.aliases, website_url: website });
+        catalog.companies.push(Company {
+            id,
+            canonical_name: name,
+            aliases: row.aliases,
+            website_url: website,
+            maintainer: row.maintainer,
+        });
     }
 
     let mut ids_by_login: HashMap<String, HashSet<String>> = HashMap::new();
@@ -345,6 +386,28 @@ mod tests {
         let current = catalog.current_affiliation(&alice, "2026-01-01");
         assert_eq!(current.company_id, "union");
         assert!(!current.conflict);
+    }
+
+    #[test]
+    fn maintainer_days_follow_dated_periods() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("companies.yaml"),
+            "companies:\n- id: union\n  canonical_name: Union\n  website_url: https://union.ai\n  maintainer: true\n- id: lyft\n  canonical_name: Lyft\n  website_url: https://lyft.com\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("affiliations.yaml"),
+            "affiliations:\n- username: alice\n  company_id: union\n- username: alice\n  company_id: lyft\n  valid_from: '2020-01-01'\n  valid_until: '2021-01-01'\n- username: bob\n  company_id: union\n  valid_from: '2022-01-01'\n  valid_until: '2023-01-01'\n- username: bob\n  company_id: lyft\n  valid_from: '2023-01-01'\n",
+        )
+        .unwrap();
+        let people = [contributor("github:1", "alice"), contributor("github:2", "bob")];
+        let catalog = load_company_catalog(dir.path(), &people).unwrap();
+        let day = |value: &str| parse_date(value).unwrap();
+        // Undated at Union except for a year at Lyft.
+        assert_eq!(catalog.maintainer_days("github:1"), [(i32::MIN, day("2020-01-01")), (day("2021-01-01"), i32::MAX)]);
+        assert_eq!(catalog.maintainer_days("github:2"), [(day("2022-01-01"), day("2023-01-01"))]);
+        assert!(catalog.maintainer_days("github:3").is_empty());
     }
 
     #[test]

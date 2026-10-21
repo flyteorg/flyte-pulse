@@ -1,14 +1,18 @@
 import { getJson, snapshotMeta } from "./api.js";
 import {
+  aiContributorLink,
   errorBox,
   escapeHtml,
+  formatDate,
   formatStamp,
+  highlights,
   number,
   page,
   panel,
   pendingPanel,
   reviewPanel,
   stats,
+  userLink,
 } from "./common.js";
 import { loadCompanyShare } from "./companies.js";
 import { activityPanel, languagePanel } from "./components/charts.js";
@@ -54,6 +58,16 @@ const KINDS = {
     noun: "new contributors",
     empty: "No new contributors in this range.",
   },
+  COMMUNITY: {
+    label: "Community",
+    title: "Top community contributors",
+    subtitle: (data) =>
+      `${communityScope(data)}; line changes are shared across the PR author and co-authors`,
+    rows: "community_top_contributors",
+    columns: () => contributorColumns(),
+    noun: "community contributors",
+    empty: "No community contributions in this range.",
+  },
   AI: {
     label: "AI",
     title: "Top AI contributors",
@@ -74,6 +88,91 @@ const KINDS = {
     empty: "No reviews in this range.",
   },
 };
+
+// Community activity is what people did while not at a maintainer company.
+function maintainers(data) {
+  const names = data.maintainer_companies || [];
+  return new Intl.ListFormat("en", { type: "disjunction" }).format(names);
+}
+
+function communityScope(data) {
+  return data.maintainer_companies?.length
+    ? `Activity while not affiliated with ${maintainers(data)}`
+    : "Every human contributor; no maintainer company is configured";
+}
+
+// The first row of `rows` sorted by `key` like a table column: largest first, ties by name.
+function leader(rows, key, name = (row) => (row.name || row.login || "").toLocaleLowerCase()) {
+  return (rows || [])
+    .filter((row) => Number(row[key]) > 0)
+    .sort((a, b) => b[key] - a[key] || name(a).localeCompare(name(b)))[0];
+}
+
+function count(value, singular, plural) {
+  return `${number.format(value)} ${value === 1 ? singular : plural}`;
+}
+
+// Leaders of the contributor lists, each linking to its full ranking.
+function highlightCards(data) {
+  const person = (row) => row && userLink(row.id, row.name, row.login);
+  const ranking = (kind, sort) =>
+    `<button type="button" class="link-button" data-ranking="${kind}" data-ranking-sort="${sort}">See ranking</button>`;
+  const merged = (row, none) =>
+    row ? count(row.pull_requests_merged, "merged PR", "merged PRs") : none;
+  const top = leader(data.human_top_contributors, "pull_requests_merged");
+  const community = leader(data.community_top_contributors, "pull_requests_merged");
+  const reviewer = leader(data.top_reviewers, "reviews");
+  const newcomer = leader(data.new_top_contributors, "pull_requests_merged");
+  const model =
+    data.ai_status === "loaded" &&
+    leader(data.ai_top_contributors, "commits_with_ai", (row) => row.provider || "");
+  const modelName = model && (model.model ? `${model.provider} · ${model.model}` : model.provider);
+  return highlights([
+    {
+      label: "Top contributor",
+      subject: person(top),
+      value: merged(top, "No merged PRs in this range"),
+      action: ranking("HUMAN", "pull_requests_merged"),
+    },
+    {
+      label: "Top community contributor",
+      subject: person(community),
+      value: merged(community, "No community merged PRs in this range"),
+      note: data.maintainer_companies?.length ? `Outside ${maintainers(data)}` : "",
+      action: ranking("COMMUNITY", "pull_requests_merged"),
+    },
+    {
+      label: "Top reviewer",
+      subject: person(reviewer),
+      value: reviewer
+        ? count(reviewer.reviews, "PR reviewed", "PRs reviewed")
+        : "No reviews in this range",
+      action: ranking("REVIEWERS", "reviews"),
+    },
+    {
+      label: "Top new contributor",
+      subject: person(newcomer),
+      value: newcomer
+        ? `${merged(newcomer)} · first on ${formatDate(newcomer.first_contribution_date)}`
+        : "No merged PRs from new contributors",
+      action: ranking("NEW", "pull_requests_merged"),
+    },
+    {
+      label: "Most used AI model",
+      subject: model
+        ? aiContributorLink(model.provider_key, model.provider, "", model.provider, modelName)
+        : data.ai_status === "error"
+          ? "—"
+          : PulseLoading.indicator("Loading…", true),
+      value: model
+        ? count(model.commits_with_ai, "AI-attributed commit", "AI-attributed commits")
+        : data.ai_status === "loaded"
+          ? "No AI attribution in this range"
+          : "",
+      action: ranking("AI", "commits_with_ai"),
+    },
+  ]);
+}
 
 function summaryCards(summary, newContributorsHref, pending = false) {
   return stats(
@@ -169,7 +268,7 @@ export function mountOverview(root) {
     const ai = kind === "AI";
     return panel({
       title: view.title,
-      subtitle: view.subtitle,
+      subtitle: typeof view.subtitle === "function" ? view.subtitle(currentData) : view.subtitle,
       controls: toggle({
         label: "Contributor list",
         options: Object.entries(KINDS).map(([key, item]) => [key, item.label]),
@@ -183,7 +282,7 @@ export function mountOverview(root) {
         placeholder: ai ? "Model name" : "Username or full name",
         value: query,
         statusId: "overview-contributor-status",
-      })}<div id="overview-contributor-results"></div>`,
+      })}<div class="contributors-results" id="overview-contributor-results"></div>`,
     });
   }
 
@@ -205,7 +304,9 @@ export function mountOverview(root) {
       data.ai_status = "error";
       data.ai_error = `AI contributor activity could not be loaded: ${error.message}`;
     }
-    if (active && currentData === data && kind === "AI") showContributors();
+    if (!active || currentData !== data) return;
+    $("overview-highlights").innerHTML = highlightCards(data);
+    if (kind === "AI") showContributors();
   }
 
   function overviewBody(data) {
@@ -214,6 +315,7 @@ export function mountOverview(root) {
     setParam(newContributors, "repository_id", repository.value);
     return (
       summaryCards(s, `#/users?${newContributors}`) +
+      `<div id="overview-highlights">${highlightCards(data)}</div>` +
       `<section class="grid overview-grid">${activityPanel(data.daily, {
         id: "overview-activity",
         subtitle: "Daily merged PRs and commits across selected repositories, UTC",
@@ -265,6 +367,8 @@ export function mountOverview(root) {
     }
     $("overview-body").innerHTML = overviewBody(data);
     showContributors();
+    // The AI ranking is a separate query; the highlights show its leader.
+    void loadAIContributors(data);
     void loadCompanyShare($("overview-company-share"), "overview-companies", selection, {
       large: true,
       note: "Each contribution counts once for every credited company. Undated mappings cover all recorded activity unless a dated period overrides them. Without a known affiliation, contributions count as Independent.",
@@ -288,12 +392,31 @@ export function mountOverview(root) {
 
   root.addEventListener("click", onClick);
   root.addEventListener("input", onInput);
-  function onClick(event) {
-    const button = event.target.closest("#overview-contributors [data-toggle-value]");
-    if (!button || !currentData) return;
-    kind = button.dataset.toggleValue;
+  function showKind(next) {
+    kind = next;
     $("overview-contributors").outerHTML = contributorsPanel();
     showContributors();
+  }
+  function onClick(event) {
+    if (!currentData) return;
+    const ranking = event.target.closest("[data-ranking]");
+    if (ranking) {
+      // Open the leader's list sorted by the highlighted metric.
+      const table = `overview-${ranking.dataset.ranking.toLowerCase()}`;
+      const values = currentRoute().params;
+      values.set(`${table}_sort`, ranking.dataset.rankingSort);
+      values.set(`${table}_dir`, "desc");
+      replaceParams(values);
+      showKind(ranking.dataset.ranking);
+      $("overview-contributors").scrollIntoView({ behavior: "smooth", block: "start" });
+      $("overview-contributors")
+        .querySelector("[aria-pressed='true']")
+        .focus({ preventScroll: true });
+      return;
+    }
+    const button = event.target.closest("#overview-contributors [data-toggle-value]");
+    if (!button) return;
+    showKind(button.dataset.toggleValue);
     $("overview-contributors").querySelector(`[data-toggle-value="${kind}"]`).focus();
   }
   function onInput(event) {
