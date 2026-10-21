@@ -4,7 +4,7 @@ Community activity across the Flyte repositories, served as a static GitHub Page
 site. Rust collects the data in GitHub Actions and answers every dashboard query
 in the browser through WebAssembly; there is no database or API server.
 
-Site: https://flyte.org/flyte-pulse/
+Site: https://flyteorg.github.io/flyte-pulse/
 
 ```
 GitHub Actions (daily)                          GitHub Pages
