@@ -45,6 +45,7 @@ const KINDS = {
     title: "Top human contributors",
     subtitle: "Line changes are shared across the PR author and recognized co-authors",
     rows: "human_top_contributors",
+    sort: "pull_requests_merged",
     columns: () => contributorColumns(),
     noun: "contributors",
     empty: "No human contributor activity in this range.",
@@ -52,8 +53,9 @@ const KINDS = {
   NEW: {
     label: "New",
     title: "New contributors",
-    subtitle: "First recorded contribution in the selected range and repository, newest first",
+    subtitle: "First recorded contribution in the selected range and repository",
     rows: "new_top_contributors",
+    sort: "pull_requests_merged",
     columns: () => contributorColumns({ first: true }),
     noun: "new contributors",
     empty: "No new contributors in this range.",
@@ -64,6 +66,7 @@ const KINDS = {
     subtitle: (data) =>
       `${communityScope(data)}; line changes are shared across the PR author and co-authors`,
     rows: "community_top_contributors",
+    sort: "pull_requests_merged",
     columns: () => contributorColumns(),
     noun: "community contributors",
     empty: "No community contributions in this range.",
@@ -73,6 +76,7 @@ const KINDS = {
     title: "Top AI contributors",
     subtitle: "AI line changes are shared across each recognized AI identity",
     rows: "ai_top_contributors",
+    sort: "commits_with_ai",
     columns: aiModelColumns,
     noun: "AI identities",
     empty: "No recognized AI attribution in this range.",
@@ -83,6 +87,7 @@ const KINDS = {
     subtitle:
       "Pull requests reviewed in the selected range; each reviewer counts once per pull request",
     rows: "top_reviewers",
+    sort: "reviews",
     columns: reviewerColumns,
     noun: "reviewers",
     empty: "No reviews in this range.",
@@ -115,31 +120,31 @@ function count(value, singular, plural) {
 // Leaders of the contributor lists, each linking to its full ranking.
 function highlightCards(data) {
   const person = (row) => row && userLink(row.id, row.name, row.login);
-  const ranking = (kind, sort) =>
-    `<button type="button" class="link-button" data-ranking="${kind}" data-ranking-sort="${sort}">See ranking</button>`;
+  // Each card shows the first row of its list in that list's default order.
+  const first = (kind, name) => leader(data[KINDS[kind].rows], KINDS[kind].sort, name);
+  const ranking = (kind) =>
+    `<button type="button" class="link-button" data-ranking="${kind}" data-ranking-sort="${KINDS[kind].sort}">See ranking</button>`;
   const merged = (row, none) =>
     row ? count(row.pull_requests_merged, "merged PR", "merged PRs") : none;
-  const top = leader(data.human_top_contributors, "pull_requests_merged");
-  const community = leader(data.community_top_contributors, "pull_requests_merged");
-  const reviewer = leader(data.top_reviewers, "reviews");
-  const newcomer = leader(data.new_top_contributors, "pull_requests_merged");
-  const model =
-    data.ai_status === "loaded" &&
-    leader(data.ai_top_contributors, "commits_with_ai", (row) => row.provider || "");
+  const top = first("HUMAN");
+  const community = first("COMMUNITY");
+  const reviewer = first("REVIEWERS");
+  const newcomer = first("NEW");
+  const model = data.ai_status === "loaded" && first("AI", (row) => row.provider || "");
   const modelName = model && (model.model ? `${model.provider} · ${model.model}` : model.provider);
   return highlights([
     {
       label: "Top contributor",
       subject: person(top),
       value: merged(top, "No merged PRs in this range"),
-      action: ranking("HUMAN", "pull_requests_merged"),
+      action: ranking("HUMAN"),
     },
     {
       label: "Top community contributor",
       subject: person(community),
       value: merged(community, "No community merged PRs in this range"),
       note: data.maintainer_companies?.length ? `Outside ${maintainers(data)}` : "",
-      action: ranking("COMMUNITY", "pull_requests_merged"),
+      action: ranking("COMMUNITY"),
     },
     {
       label: "Top reviewer",
@@ -147,7 +152,7 @@ function highlightCards(data) {
       value: reviewer
         ? count(reviewer.reviews, "PR reviewed", "PRs reviewed")
         : "No reviews in this range",
-      action: ranking("REVIEWERS", "reviews"),
+      action: ranking("REVIEWERS"),
     },
     {
       label: "Top new contributor",
@@ -155,7 +160,7 @@ function highlightCards(data) {
       value: newcomer
         ? `${merged(newcomer)} · first on ${formatDate(newcomer.first_contribution_date)}`
         : "No merged PRs from new contributors",
-      action: ranking("NEW", "pull_requests_merged"),
+      action: ranking("NEW"),
     },
     {
       label: "Most used AI model",
@@ -169,7 +174,7 @@ function highlightCards(data) {
         : data.ai_status === "loaded"
           ? "No AI attribution in this range"
           : "",
-      action: ranking("AI", "commits_with_ai"),
+      action: ranking("AI"),
     },
   ]);
 }
@@ -260,6 +265,7 @@ export function mountOverview(root) {
       columns: view.columns(),
       rows,
       empty: query.trim() ? `No ${view.noun} match “${query.trim()}”.` : view.empty,
+      sort: { key: view.sort, direction: "desc" },
     });
   }
 
