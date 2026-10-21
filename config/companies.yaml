@@ -500,6 +500,11 @@ companies:
   canonical_name: Namecheap
   website_url: https://www.namecheap.com/
   aliases: []
+- id: neptune-ai
+  canonical_name: neptune.ai
+  website_url: https://neptune.ai
+  aliases:
+  - '@neptune-ai'
 - id: netflix
   canonical_name: Netflix
   website_url: https://www.netflix.com
@@ -547,6 +552,11 @@ companies:
   website_url: https://odyssey.ml
   aliases:
   - '@odysseyml'
+- id: openai
+  canonical_name: OpenAI
+  website_url: https://openai.com/
+  aliases:
+  - '@openai'
 - id: opta
   canonical_name: Opta
   website_url: https://docs.opta.dev/

@@ -69,6 +69,8 @@ affiliations:
   company_id: nvidia
 - username: apatel-fn
   company_id: freenome
+- username: ArgentFalcon
+  company_id: lyft
 - username: ArjunSharda
   company_id: tleem
 - username: ArthurBook
@@ -111,6 +113,8 @@ affiliations:
   company_id: hunted-labs
 - username: bweber-rebellion
   company_id: rebellion-defense
+- username: byjiang1996
+  company_id: linkedin
 - username: ByronHsu
   company_id: xai
 - username: CalvinLeather
@@ -135,12 +139,18 @@ affiliations:
   company_id: adyen
 - username: convexquad
   company_id: lyft
+- username: corleyma
+  company_id: freenome
 - username: cosmicbboy
   company_id: union
 - username: cpaulik
   company_id: planet
 - username: ctso
   company_id: givebutter
+- username: ctxswitch
+  company_id: union
+- username: daikeshi
+  company_id: spotify
 - username: DanBrunkow
   company_id: spotify
 - username: daniel-shuy
@@ -324,6 +334,8 @@ affiliations:
   valid_until: '2026-07-23'
 - username: madiyar-wayve
   company_id: wayve
+- username: mahanh
+  company_id: spotify
 - username: mao3267
   company_id: uc-san-diego
 - username: mark-thm
@@ -358,6 +370,8 @@ affiliations:
   company_id: attensi
 - username: narape
   company_id: spotify
+- username: nathandpeterson
+  company_id: union
 - username: ndonyapour
   company_id: axle
 - username: neilisaur
@@ -449,6 +463,13 @@ affiliations:
   company_id: evenup
 - username: shayansadeghieh
   company_id: stripe
+- username: SiddhantSadangi
+  company_id: neptune-ai
+  valid_from: '2024-08-21'
+  valid_until: '2024-08-22'
+- username: SiddhantSadangi
+  company_id: openai
+  valid_from: '2026-04-14'
 - username: sighingnow
   company_id: alibaba
 - username: SKalt
