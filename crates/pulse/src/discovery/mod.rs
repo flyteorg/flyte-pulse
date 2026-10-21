@@ -185,6 +185,9 @@ pub struct NewAffiliation {
     pub company_id: String,
     /// Start of the affiliation when an earlier one is known; undated otherwise.
     pub valid_from: Option<String>,
+    /// The contributor's first and last tracked activity ("" when none).
+    pub first_activity: String,
+    pub last_activity: String,
     pub evidence: String,
 }
 
@@ -210,6 +213,8 @@ pub struct Change {
     pub date: String,
     /// The contributor's first recorded activity, the default start of the old period.
     pub first_activity: String,
+    /// The contributor's last recorded activity.
+    pub last_activity: String,
     pub evidence: String,
 }
 
@@ -286,6 +291,25 @@ fn domain_runs(state: &State) -> HashMap<&str, Vec<DomainRun>> {
             (id, list)
         })
         .collect()
+}
+
+/// First and last tracked activity per contributor: commits, opened pull requests,
+/// and submitted reviews.
+fn activity_ranges(state: &State) -> HashMap<&str, (i64, i64)> {
+    let commits = state.commits.iter().map(|c| (&c.author_contributor_id, c.authored_at.or(c.committed_at)));
+    let pull_requests = state.pull_requests.iter().map(|p| (&p.author_contributor_id, p.created_at));
+    let reviews = state.pull_request_reviews.iter().map(|r| (&r.reviewer_contributor_id, r.submitted_at));
+    let mut ranges: HashMap<&str, (i64, i64)> = HashMap::new();
+    for (id, at) in commits.chain(pull_requests).chain(reviews) {
+        let Some(at) = at else { continue };
+        if id.is_empty() {
+            continue;
+        }
+        let range = ranges.entry(id).or_insert((at.0, at.0));
+        range.0 = range.0.min(at.0);
+        range.1 = range.1.max(at.0);
+    }
+    ranges
 }
 
 fn date(timestamp: i64) -> String {
@@ -675,19 +699,7 @@ pub fn discover(
 
     // 3. Per contributor: new affiliations, changes, conflicts, and history from domains.
     let today_date = format_date(today);
-    let mut first_activity: HashMap<&str, i64> = HashMap::new();
-    for commit in &state.commits {
-        if let Some(at) = commit.authored_at.or(commit.committed_at) {
-            let entry = first_activity.entry(&commit.author_contributor_id).or_insert(at.0);
-            *entry = (*entry).min(at.0);
-        }
-    }
-    for pr in &state.pull_requests {
-        if let Some(at) = pr.created_at {
-            let entry = first_activity.entry(&pr.author_contributor_id).or_insert(at.0);
-            *entry = (*entry).min(at.0);
-        }
-    }
+    let activity = activity_ranges(state);
     let name =
         |id: &str| -> String { if id.is_empty() { "Independent".to_string() } else { catalog.company_name(id) } };
     let new_company_name = |id: &str| discovery_name(&discovery.companies, id).unwrap_or_else(|| name(id));
@@ -695,6 +707,8 @@ pub fn discover(
 
     for contributor in &humans {
         let id = contributor.id.as_str();
+        let (first_activity, last_activity) =
+            activity.get(id).map(|(first, last)| (date(*first), date(*last))).unwrap_or_default();
         let profile = contributor.profile_company.trim();
         let profile_company: Option<String> = if profile.is_empty() {
             None
@@ -754,6 +768,8 @@ pub fn discover(
                     login: contributor.login.clone(),
                     company_id: company.clone(),
                     valid_from: None,
+                    first_activity: first_activity.clone(),
+                    last_activity: last_activity.clone(),
                     evidence: format!("{}: {evidence}", profile_link(contributor)),
                 });
             }
@@ -762,7 +778,6 @@ pub fn discover(
             let mut changed = false;
             let map_profile =
                 |value: &str| -> String { catalog.aliases.get(&normalize_company(value)).cloned().unwrap_or_default() };
-            let first = first_activity.get(id).map(|t| date(*t)).unwrap_or_default();
             if let [.., previous, last] = contributor.profile_company_history.as_slice() {
                 let (before, after) = (map_profile(&previous.company), map_profile(&last.company));
                 if before != after && after != effective {
@@ -775,7 +790,8 @@ pub fn discover(
                         from: effective.clone(),
                         to: after,
                         date: since.clone(),
-                        first_activity: first.clone(),
+                        first_activity: first_activity.clone(),
+                        last_activity: last_activity.clone(),
                         evidence: format!(
                             "{}: profile company changed from {} (last seen {until}) to {} (first seen {since})",
                             profile_link(contributor),
@@ -809,7 +825,8 @@ pub fn discover(
                         from: effective.clone(),
                         to: to.clone(),
                         date: since.clone(),
-                        first_activity: first.clone(),
+                        first_activity: first_activity.clone(),
+                        last_activity: last_activity.clone(),
                         evidence: format!(
                             "{}: public organizations changed from {:?} to {:?} (first seen {since})",
                             profile_link(contributor),
@@ -832,7 +849,8 @@ pub fn discover(
                         from: effective.clone(),
                         to: company.clone(),
                         date: date(run.first),
-                        first_activity: first.clone(),
+                        first_activity: first_activity.clone(),
+                        last_activity: last_activity.clone(),
                         evidence: format!("{}: {}", profile_link(contributor), domain_evidence(run)),
                     });
                     changed = true;
@@ -941,6 +959,15 @@ fn discovery_name(companies: &[NewCompany], id: &str) -> Option<String> {
     companies.iter().find(|c| c.id == id).map(|c| c.canonical_name.clone())
 }
 
+/// A contributor's first and last tracked activity for a report table cell.
+fn activity_cell(first: &str, last: &str) -> String {
+    match (first, last) {
+        ("", _) => "none".to_string(),
+        (first, last) if first == last => first.to_string(),
+        (first, last) => format!("{first} to {last}"),
+    }
+}
+
 /// The review report, for the job summary and the pull request description.
 pub fn markdown(discovery: &Discovery, catalog: &CompanyCatalog, applied: Option<&str>) -> String {
     let name = |id: &str| -> String {
@@ -995,24 +1022,30 @@ pub fn markdown(discovery: &Discovery, catalog: &CompanyCatalog, applied: Option
         out.push('\n');
     }
     if !discovery.affiliations.is_empty() {
-        let _ =
-            writeln!(out, "### New affiliations\n\n| Contributor | Company | Since | Evidence |\n|---|---|---|---|");
+        let _ = writeln!(
+            out,
+            "### New affiliations\n\nAn entry without a start date applies to all of the contributor's activity. \
+             Activity is the range of their tracked commits, pull requests, and reviews.\n\n\
+             | Contributor | Company | Since | Activity | Evidence |\n|---|---|---|---|---|"
+        );
         for a in &discovery.affiliations {
             let (link, evidence) = a.evidence.split_once(": ").unwrap_or((&a.login, &a.evidence));
             let since = a.valid_from.as_deref().unwrap_or("all activity");
-            let _ = writeln!(out, "| {link} | {} | {since} | {evidence} |", name(&a.company_id));
+            let activity = activity_cell(&a.first_activity, &a.last_activity);
+            let _ = writeln!(out, "| {link} | {} | {since} | {activity} | {evidence} |", name(&a.company_id));
         }
         out.push('\n');
     }
     if !discovery.changes.is_empty() {
         let _ = writeln!(
             out,
-            "### Affiliation changes\n\n| Contributor | From | To | Since | Evidence |\n|---|---|---|---|---|"
+            "### Affiliation changes\n\n| Contributor | From | To | Since | Activity | Evidence |\n|---|---|---|---|---|---|"
         );
         for c in &discovery.changes {
             let (link, evidence) = c.evidence.split_once(": ").unwrap_or((&c.login, &c.evidence));
             let to = if c.to.is_empty() { "unknown (left)".to_string() } else { name(&c.to) };
-            let _ = writeln!(out, "| {link} | {} | {to} | {} | {evidence} |", name(&c.from), c.date);
+            let activity = activity_cell(&c.first_activity, &c.last_activity);
+            let _ = writeln!(out, "| {link} | {} | {to} | {} | {activity} | {evidence} |", name(&c.from), c.date);
         }
         out.push('\n');
     }

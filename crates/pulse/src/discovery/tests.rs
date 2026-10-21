@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use pulse_core::state::{Commit, CompanyObservation, Contributor, State};
+use pulse_core::state::{Commit, CompanyObservation, Contributor, PullRequest, PullRequestReview, State};
 use pulse_core::time::{Ts, parse_date, parse_timestamp};
 
 use super::*;
@@ -60,6 +60,16 @@ fn commit(sha: char, author: &str, at: &str, domain: &str) -> Commit {
     }
 }
 
+fn review(reviewer: &str, at: &str) -> PullRequestReview {
+    PullRequestReview {
+        repository_id: "github.com:R1".into(),
+        pull_request_id: "1".into(),
+        reviewer_contributor_id: reviewer.into(),
+        submitted_at: ts(at),
+        ..PullRequestReview::default()
+    }
+}
+
 fn setup() -> (tempfile::TempDir, State) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("companies.yaml"), COMPANIES).unwrap();
@@ -102,6 +112,15 @@ fn setup() -> (tempfile::TempDir, State) {
         commit('e', "github:5", "2021-07-01T00:00:00Z", "union.ai"),
         commit('f', "github:5", "2026-09-01T00:00:00Z", "union.ai"),
     ];
+    state.pull_requests = vec![PullRequest {
+        repository_id: "github.com:R1".into(),
+        author_contributor_id: "github:2".into(),
+        created_at: ts("2026-08-15T00:00:00Z"),
+        ..PullRequest::default()
+    }];
+    // Reviews count as activity: alice has nothing else, and carol's is her latest.
+    state.pull_request_reviews =
+        vec![review("github:1", "2024-08-21T00:00:00Z"), review("github:3", "2026-05-01T00:00:00Z")];
     (dir, state)
 }
 
@@ -141,7 +160,7 @@ fn finds_companies_affiliations_and_changes() {
     let change = &discovery.changes[0];
     assert_eq!((change.login.as_str(), change.from.as_str(), change.to.as_str()), ("carol", "lyft", "union"));
     assert_eq!(change.date, "2026-03-08");
-    assert_eq!(change.first_activity, "2025-06-01");
+    assert_eq!((change.first_activity.as_str(), change.last_activity.as_str()), ("2025-06-01", "2026-05-01"));
 
     let periods: Vec<(&str, &str, &str, &str)> = discovery
         .periods
@@ -164,7 +183,12 @@ fn finds_companies_affiliations_and_changes() {
 
     let report = markdown(&discovery, &catalog, None);
     assert!(report.contains("### Affiliation changes"));
-    assert!(report.contains("| [carol](https://github.com/carol) | Lyft | Union | 2026-03-08 |"));
+    assert!(
+        report.contains("| [carol](https://github.com/carol) | Lyft | Union | 2026-03-08 | 2025-06-01 to 2026-05-01 |")
+    );
+    assert!(report.contains("| [alice](https://github.com/alice) | Union | all activity | 2024-08-21 |"), "{report}");
+    assert!(report.contains("| [bob](https://github.com/bob) | Union | all activity | 2026-08-15 to 2026-09-01 |"));
+    assert!(report.contains("| [dave](https://github.com/dave) | Acme Labs | all activity | none |"));
     assert!(report.contains("### Start dates for current affiliations"));
     assert!(report.contains("| [erin](https://github.com/erin) | Union | 2021-07-01 |"));
     assert!(report.contains("profile company `@unionai`"), "{report}");
@@ -186,7 +210,7 @@ fn applies_edits_sorted_and_keeps_comments() {
 # Reviewed companies.
 companies:
 - id: acme-labs
-  canonical_name: 'Acme Labs'
+  canonical_name: Acme Labs
   website_url: https://acme.dev
   aliases:
   - '@Acme-Labs'
