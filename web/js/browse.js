@@ -287,6 +287,7 @@ function repositoryDetailPage(data) {
         columns: contributorColumns(),
         rows: data.top_contributors,
         empty: "No contributor activity.",
+        sort: { key: "pull_requests_merged", direction: "desc" },
       }),
     })}${panel({
       title: "Top reviewers",
@@ -295,6 +296,7 @@ function repositoryDetailPage(data) {
         columns: reviewerColumns(),
         rows: data.top_reviewers,
         empty: "No reviews in this range.",
+        sort: { key: "reviews", direction: "desc" },
       }),
     })}</section>` +
     panel({

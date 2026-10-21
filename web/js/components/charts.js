@@ -169,22 +169,27 @@ function renderPie(spec) {
   const radius = 48;
   const circumference = 2 * Math.PI * radius;
   let offset = 0;
+  const share = (slice) => `${Math.round((slice.value / total) * 100)}%`;
   const circles = slices
-    .map((slice) => {
+    .map((slice, index) => {
       const length = (slice.value / total) * circumference;
-      const circle = `<circle cx="64" cy="64" r="${radius}" fill="none" style="stroke:${slice.color}" stroke-width="24" stroke-dasharray="${length} ${circumference - length}" stroke-dashoffset="${-offset}" transform="rotate(-90 64 64)"><title>${escapeHtml(name(slice.row))}: ${number.format(slice.value)}</title></circle>`;
+      // A hovered slice moves outward along its middle; slices start at 12 o'clock.
+      const middle = ((offset + length / 2) / circumference) * 2 * Math.PI;
+      const dx = (Math.sin(middle) * 5).toFixed(2);
+      const dy = (-Math.cos(middle) * 5).toFixed(2);
+      const circle = `<g class="share-pie-slice" data-slice="${index}" data-value="${number.format(slice.value)}" data-share="${share(slice)}" style="--dx:${dx}px;--dy:${dy}px"><circle cx="64" cy="64" r="${radius}" fill="none" style="stroke:${slice.color}" stroke-width="24" stroke-dasharray="${length} ${circumference - length}" stroke-dashoffset="${-offset}" transform="rotate(-90 64 64)"><title>${escapeHtml(name(slice.row))}: ${number.format(slice.value)}</title></circle></g>`;
       offset += length;
       return circle;
     })
     .join("");
   const legend = slices
     .map(
-      (slice) =>
-        `<li><span class="share-pie-key" style="--slice-color:${slice.color}"></span><span class="share-pie-name">${link(slice.row)}</span><span class="share-pie-value">${number.format(slice.value)} · ${Math.round((slice.value / total) * 100)}%</span></li>`,
+      (slice, index) =>
+        `<li data-slice="${index}"><span class="share-pie-key" style="--slice-color:${slice.color}"></span><span class="share-pie-name">${link(slice.row)}</span><span class="share-pie-value">${number.format(slice.value)} · ${share(slice)}</span></li>`,
     )
     .join("");
   const chart = total
-    ? `<div class="share-pie${large ? " share-pie-large" : ""}"><svg viewBox="0 0 128 128" role="img" aria-label="${escapeHtml(`${title}: ${metric.subtitle || metric.label}`)}">${circles}<text x="64" y="61" text-anchor="middle" class="share-pie-total">${number.format(total)}</text><text x="64" y="77" text-anchor="middle" class="share-pie-unit">${escapeHtml(metric.unit)}</text></svg><ul class="share-pie-legend">${legend}</ul></div>`
+    ? `<div class="share-pie${large ? " share-pie-large" : ""}"><svg viewBox="0 0 128 128" role="img" aria-label="${escapeHtml(`${title}: ${metric.subtitle || metric.label}`)}">${circles}<text x="64" y="61" text-anchor="middle" class="share-pie-total" data-total="${number.format(total)}">${number.format(total)}</text><text x="64" y="77" text-anchor="middle" class="share-pie-unit" data-unit="${escapeHtml(metric.unit)}">${escapeHtml(metric.unit)}</text></svg><ul class="share-pie-legend">${legend}</ul></div>`
     : `<div class="empty">${escapeHtml(empty)}</div>`;
   return panel({
     title,
@@ -208,6 +213,45 @@ document.addEventListener("click", (event) => {
     .querySelector(`[data-pie="${CSS.escape(spec.id)}"] [data-toggle-value="${CSS.escape(value)}"]`)
     ?.focus();
 });
+
+// Hovering or focusing a slice or its legend entry pops the slice out, fades the others,
+// and shows its value and share in the middle of the donut.
+function activateSlice(chart, index) {
+  chart.classList.toggle("is-active", index != null);
+  for (const element of chart.querySelectorAll("[data-slice]")) {
+    element.classList.toggle("is-active", element.dataset.slice === index);
+  }
+  const slice = index != null && chart.querySelector(`g[data-slice="${index}"]`);
+  const total = chart.querySelector(".share-pie-total");
+  const unit = chart.querySelector(".share-pie-unit");
+  total.textContent = slice ? slice.dataset.value : total.dataset.total;
+  unit.textContent = slice ? slice.dataset.share : unit.dataset.unit;
+  // Bring the legend entry into view inside a scrolling legend, without scrolling the page.
+  const item = slice && chart.querySelector(`li[data-slice="${index}"]`);
+  const legend = item?.parentElement;
+  if (item && legend.scrollHeight > legend.clientHeight) {
+    const top =
+      item.getBoundingClientRect().top - legend.getBoundingClientRect().top + legend.scrollTop;
+    const bottom = top + item.offsetHeight;
+    if (top < legend.scrollTop) legend.scrollTop = top;
+    else if (bottom > legend.scrollTop + legend.clientHeight) {
+      legend.scrollTop = bottom - legend.clientHeight;
+    }
+  }
+}
+
+for (const type of ["mouseover", "focusin"]) {
+  document.addEventListener(type, (event) => {
+    const item = event.target.closest?.(".share-pie [data-slice]");
+    if (item) activateSlice(item.closest(".share-pie"), item.dataset.slice);
+  });
+}
+for (const type of ["mouseout", "focusout"]) {
+  document.addEventListener(type, (event) => {
+    const chart = event.target.closest?.(".share-pie");
+    if (chart && !chart.contains(event.relatedTarget)) activateSlice(chart, null);
+  });
+}
 
 /* Languages */
 

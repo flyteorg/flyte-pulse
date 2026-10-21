@@ -265,10 +265,12 @@ impl View<'_> {
         let ranked = |totals: &Ordered<u32, Totals>| {
             let mut rows: Vec<(u32, Value)> =
                 totals.entries.iter().map(|(key, values)| (*key, contributor_row(self, *key, values))).collect();
+            // Merged pull requests first, then commits and opened pull requests, so lists
+            // cut to the top few keep the contributors with the most merged work.
             rows.sort_by(|(_, a), (_, b)| {
-                let score =
-                    |v: &Value| int(v, "pull_requests_merged") + int(v, "commits") + int(v, "pull_requests_opened");
-                (score(b), fold(&text(b, "name"))).cmp(&(score(a), fold(&text(a, "name"))))
+                let key =
+                    |v: &Value| (int(v, "pull_requests_merged"), int(v, "commits"), int(v, "pull_requests_opened"));
+                key(b).cmp(&key(a)).then_with(|| fold(&text(a, "name")).cmp(&fold(&text(b, "name"))))
             });
             rows
         };

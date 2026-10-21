@@ -1009,6 +1009,39 @@ tbody tr:hover td {
   align-items: center;
   gap: 8px;
   font-size: 12px;
+  transition: opacity 160ms ease;
+}
+
+/* A hovered slice pops out along its middle and thickens; the rest fade. */
+.share-pie-slice {
+  transition:
+    transform 180ms ease,
+    opacity 160ms ease;
+}
+
+.share-pie-slice circle {
+  transition: stroke-width 180ms ease;
+}
+
+.share-pie-slice.is-active {
+  transform: translate(var(--dx), var(--dy));
+}
+
+.share-pie-slice.is-active circle {
+  stroke-width: 28;
+}
+
+.share-pie.is-active .share-pie-slice:not(.is-active),
+.share-pie.is-active .share-pie-legend li:not(.is-active) {
+  opacity: 0.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-pie-slice,
+  .share-pie-slice circle,
+  .share-pie-legend li {
+    transition: none;
+  }
 }
 
 .share-pie-key {
