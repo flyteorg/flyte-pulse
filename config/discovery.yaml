@@ -30,4 +30,6 @@ ignore:
     - gmai.com
     # Student and alumni addresses of the University of Michigan.
     - umich.edu
-  users: []
+  users:
+    # Works at Union (union.ai commit email); the profile still names a former employer.
+    - k1sauce
