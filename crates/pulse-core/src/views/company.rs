@@ -4,8 +4,9 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde_json::{Value, json};
 
-use super::{ApiError, ApiResult, Params, View, date_str, days_value, fold, iso, parse_days};
+use super::{ApiError, ApiResult, Params, View, days_value, fold, iso, parse_days};
 use crate::snapshot::{Affiliation, Company, CompanyMetricKind, NONE};
+use crate::time::format_date;
 
 /// Per-metric company values indexed by [`CompanyMetricKind`].
 type Values = [i64; CompanyMetricKind::ALL.len()];
@@ -83,34 +84,24 @@ impl View<'_> {
         let mut repo_names: HashMap<(u32, u32), String> = HashMap::new();
         for (index, repo) in data.snapshot.repositories.iter().enumerate() {
             let index = index as u32;
-            let name = format!("{}/{}", repo.owner, repo.name);
-            let views: Vec<(&str, &str)> = if repo.target_branches.len() > 1 {
-                repo.target_branches.iter().map(|b| (b.name.as_str(), b.label.as_str())).collect()
-            } else {
-                vec![("", "")]
-            };
-            for (branch, label) in views {
-                let display = if repo.target_branches.len() > 1 {
-                    format!("{name} · {}", if label.is_empty() { branch } else { label })
-                } else {
-                    name.clone()
-                };
-                let branch_index = data.branch_index(branch).unwrap_or(NONE - 1);
-                repo_names.insert((index, branch_index), display.clone());
-                repository_options.push(json!({"id": repo.id, "target_branch": branch, "name": display}));
+            for branch in repo.branch_views() {
+                let display = data.repository_label(index, branch.map(|b| (b.name.as_str(), b.label.as_str())));
+                let branch_name = branch.map_or("", |b| b.name.as_str());
+                repo_names.insert((index, data.branch_filter(branch_name)), display.clone());
+                repository_options.push(json!({"id": repo.id, "target_branch": branch_name, "name": display}));
             }
         }
-        repository_options.sort_by_key(|r| fold(r["name"].as_str().unwrap_or_default()));
+        repository_options.sort_by_cached_key(|r| fold(r["name"].as_str().unwrap_or_default()));
 
         let repo_filter = (!repository_id.is_empty()).then(|| data.repo_index(repository_id).unwrap_or(NONE));
-        let target = data.branch_index(target_branch).unwrap_or(NONE - 1);
+        let target = data.branch_filter(target_branch);
         let in_scope = |date: i32, repo: u32| {
             start.is_none_or(|s| date >= s) && date <= end && repo_filter.is_none_or(|r| r == repo)
         };
 
         let mut totals: HashMap<u32, Values> = HashMap::new();
         let mut daily: BTreeMap<i32, Values> = BTreeMap::new();
-        let mut repository_totals: BTreeMap<(String, String), (u32, u32, Values)> = BTreeMap::new();
+        let mut repository_totals: HashMap<(u32, u32), Values> = HashMap::new();
         for row in &data.snapshot.company_metrics {
             if !in_scope(row.date, row.repo) || selected.is_some_and(|s| s != row.company) {
                 continue;
@@ -130,10 +121,7 @@ impl View<'_> {
                 row.branch == 0
             };
             if include {
-                let entry = repository_totals
-                    .entry((data.repo(row.repo).id.clone(), data.branch(row.branch).to_string()))
-                    .or_insert((row.repo, row.branch, Values::default()));
-                entry.2[metric] += row.value;
+                repository_totals.entry((row.repo, row.branch)).or_default()[metric] += row.value;
             }
         }
 
@@ -149,28 +137,23 @@ impl View<'_> {
         }
 
         let company_map: HashMap<&str, &Company> = companies.iter().map(|c| (c.id.as_str(), *c)).collect();
+        let end_date = format_date(end);
         let mut matches: HashMap<String, Vec<Value>> = HashMap::new();
-        for person in &data.snapshot.contributors {
-            if person.kind != "HUMAN" {
+        for (index, person) in data.snapshot.contributors.iter().enumerate() {
+            if !data.is_human(index as u32) {
                 continue;
             }
             let mut seen = HashSet::new();
-            for affiliation in
-                profile_affiliations(&person.affiliation, &person.affiliations, &company_map, &date_str(end))
+            for affiliation in profile_affiliations(&person.affiliation, &person.affiliations, &company_map, &end_date)
             {
                 let bucket = affiliation["company_id"].as_str().unwrap_or_default().to_string();
                 if !seen.insert(bucket.clone()) {
                     continue;
                 }
-                let name = [&person.display_name, &person.login, &person.id]
-                    .into_iter()
-                    .find(|v| !v.is_empty())
-                    .cloned()
-                    .unwrap_or_default();
                 matches.entry(bucket).or_default().push(json!({
                     "id": person.id,
                     "login": person.login,
-                    "name": name,
+                    "name": data.display(index as u32),
                     "affiliation": affiliation,
                 }));
             }
@@ -179,14 +162,20 @@ impl View<'_> {
         let metric_values = |values: &Values| -> serde_json::Map<String, Value> {
             CompanyMetricKind::ALL.iter().map(|k| (k.name().to_string(), json!(values[*k as usize]))).collect()
         };
+        let company_value = |company: &Company| -> Value {
+            let mut value = serde_json::to_value(company).unwrap_or_default();
+            if company.id == "independent"
+                && let Some(object) = value.as_object_mut()
+            {
+                object.remove("aliases");
+            }
+            value
+        };
         let mut rows: Vec<Value> = companies
             .iter()
             .enumerate()
             .map(|(index, company)| {
-                let mut row = serde_json::to_value(company).unwrap_or_default();
-                if company.id == "independent" {
-                    row.as_object_mut().map(|o| o.remove("aliases"));
-                }
+                let mut row = company_value(company);
                 let values = totals.get(&(index as u32)).copied().unwrap_or_default();
                 for (key, value) in metric_values(&values) {
                     row[key] = value;
@@ -195,16 +184,13 @@ impl View<'_> {
                 row
             })
             .collect();
-        rows.sort_by(|a, b| {
-            let key = |v: &Value| {
-                (
-                    -v["pull_requests_opened"].as_i64().unwrap_or(0),
-                    -v["commits"].as_i64().unwrap_or(0),
-                    -v["profile_matches"].as_i64().unwrap_or(0),
-                    fold(v["canonical_name"].as_str().unwrap_or_default()),
-                )
-            };
-            key(a).cmp(&key(b))
+        rows.sort_by_cached_key(|v| {
+            (
+                -v["pull_requests_opened"].as_i64().unwrap_or(0),
+                -v["commits"].as_i64().unwrap_or(0),
+                -v["profile_matches"].as_i64().unwrap_or(0),
+                fold(v["canonical_name"].as_str().unwrap_or_default()),
+            )
         });
         let percent = if coverage_total > 0 {
             (1000.0 * coverage_reviewed as f64 / coverage_total as f64).round() / 10.0
@@ -223,32 +209,32 @@ impl View<'_> {
             let company = companies[index as usize];
             let values = totals.get(&index).copied().unwrap_or_default();
             let mut profile_matches = matches.remove(&company.id).unwrap_or_default();
-            profile_matches.sort_by_key(|row| {
+            profile_matches.sort_by_cached_key(|row| {
                 (
                     !row["affiliation"]["is_current"].as_bool().unwrap_or(false),
                     fold(row["name"].as_str().unwrap_or_default()),
                 )
             });
-            let mut company_value = serde_json::to_value(company).unwrap_or_default();
-            if company.id == "independent" {
-                company_value.as_object_mut().map(|o| o.remove("aliases"));
-            }
-            result["company"] = company_value;
+            result["company"] = company_value(company);
             result["summary"] = Value::Object(metric_values(&values));
             result["profile_matches"] = json!(profile_matches);
             result["daily"] = json!(
                 daily
                     .iter()
                     .map(|(day, v)| json!({
-                        "date": date_str(*day),
+                        "date": format_date(*day),
                         "commits": v[CompanyMetricKind::Commits as usize],
                         "pull_requests_merged": v[CompanyMetricKind::PullRequestsMerged as usize],
                     }))
                     .collect::<Vec<_>>()
             );
-            result["repository_activity"] = json!(repository_totals
-                .values()
-                .map(|(repo, branch, v)| {
+            // Ordered by repository ID, then branch name.
+            let mut repository_rows: Vec<(&(u32, u32), &Values)> = repository_totals.iter().collect();
+            repository_rows
+                .sort_by_cached_key(|((repo, branch), _)| (data.repo(*repo).id.clone(), data.branch(*branch)));
+            result["repository_activity"] = json!(repository_rows
+                .into_iter()
+                .map(|((repo, branch), v)| {
                     let mut row = json!({
                         "id": data.repo(*repo).id,
                         "target_branch": data.branch(*branch),

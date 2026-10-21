@@ -13,7 +13,7 @@ use std::hash::Hash;
 use serde_json::{Value, json};
 
 use crate::snapshot::{CommitRecord, MetricKind, NONE, Person, Pr, Repo, Snapshot};
-use crate::time::{format_date, format_iso};
+use crate::time::format_iso;
 
 /// An HTTP-style error returned to the browser.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,13 +30,39 @@ impl ApiError {
 
 pub type ApiResult = Result<Value, ApiError>;
 
+/// A contributor's identity kind, parsed once from the snapshot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    Human,
+    Bot,
+    Ai,
+    Unknown,
+}
+
+impl Kind {
+    fn parse(value: &str) -> Self {
+        if value.eq_ignore_ascii_case("HUMAN") {
+            Self::Human
+        } else if value.eq_ignore_ascii_case("BOT") {
+            Self::Bot
+        } else if value.eq_ignore_ascii_case("AI") {
+            Self::Ai
+        } else {
+            Self::Unknown
+        }
+    }
+}
+
 /// A snapshot plus lookup indexes built once at load time.
 pub struct Dataset {
     pub snapshot: Snapshot,
     repo_by_id: HashMap<String, u32>,
     key_by_id: HashMap<String, u32>,
+    /// Identity kind per contributor index.
+    kinds: Vec<Kind>,
     metrics_by_repo: Vec<Vec<u32>>,
-    metrics_by_key: HashMap<u32, Vec<u32>>,
+    /// Metric rows per contributor key index (contributors, then extra keys).
+    metrics_by_key: Vec<Vec<u32>>,
     metric_dates: Option<(i32, i32)>,
     commits_by_pr: Vec<Vec<u32>>,
     /// Branch indices of the pull requests linking each commit, sorted by name.
@@ -56,12 +82,15 @@ impl Dataset {
         for (i, key) in snapshot.extra_keys.iter().enumerate() {
             key_by_id.entry(key.clone()).or_insert(base + i as u32);
         }
+        let kinds = snapshot.contributors.iter().map(|p| Kind::parse(&p.kind)).collect();
         let mut metrics_by_repo = vec![Vec::new(); snapshot.repositories.len()];
-        let mut metrics_by_key: HashMap<u32, Vec<u32>> = HashMap::new();
+        let mut metrics_by_key = vec![Vec::new(); snapshot.contributors.len() + snapshot.extra_keys.len()];
         let mut metric_dates: Option<(i32, i32)> = None;
         for (i, row) in snapshot.metrics.iter().enumerate() {
             metrics_by_repo[row.repo as usize].push(i as u32);
-            metrics_by_key.entry(row.key).or_default().push(i as u32);
+            if let Some(rows) = metrics_by_key.get_mut(row.key as usize) {
+                rows.push(i as u32);
+            }
             metric_dates = Some(match metric_dates {
                 None => (row.date, row.date),
                 Some((first, last)) => (first.min(row.date), last.max(row.date)),
@@ -89,6 +118,7 @@ impl Dataset {
             snapshot,
             repo_by_id,
             key_by_id,
+            kinds,
             metrics_by_repo,
             metrics_by_key,
             metric_dates,
@@ -126,12 +156,21 @@ impl Dataset {
         if key == NONE { None } else { self.snapshot.contributors.get(key as usize) }
     }
 
-    pub fn kind(&self, key: u32) -> &str {
-        self.person(key).map_or("", |p| p.kind.as_str())
+    /// The identity kind of a contributor key; extra keys and `NONE` are unknown.
+    pub fn kind(&self, key: u32) -> Kind {
+        self.kinds.get(key as usize).copied().unwrap_or(Kind::Unknown)
     }
 
     pub fn is_human(&self, key: u32) -> bool {
-        self.kind(key).eq_ignore_ascii_case("HUMAN")
+        self.kind(key) == Kind::Human
+    }
+
+    pub fn is_bot(&self, key: u32) -> bool {
+        self.kind(key) == Kind::Bot
+    }
+
+    pub fn is_ai(&self, key: u32) -> bool {
+        self.kind(key) == Kind::Ai
     }
 
     /// A human outside the maintainer companies on `date`.
@@ -150,13 +189,21 @@ impl Dataset {
         self.snapshot.branches.iter().position(|b| b == name).map(|i| i as u32)
     }
 
+    /// The branch index to filter rows by: an unknown branch name matches no row.
+    pub fn branch_filter(&self, name: &str) -> u32 {
+        self.branch_index(name).unwrap_or(NONE - 1)
+    }
+
+    /// Repositories as `{id, name}` options, sorted by name.
+    pub fn repository_options(&self) -> Vec<Value> {
+        let mut repositories: Vec<&Repo> = self.snapshot.repositories.iter().collect();
+        repositories.sort_by_cached_key(|r| fold(&r.full_name()));
+        repositories.into_iter().map(|r| json!({"id": r.id, "name": r.full_name()})).collect()
+    }
+
     /// Display name, then login, then the raw identifier.
     pub fn display(&self, key: u32) -> String {
-        match self.person(key) {
-            Some(p) if !p.display_name.is_empty() => p.display_name.clone(),
-            Some(p) if !p.login.is_empty() => p.login.clone(),
-            _ => self.key_id(key).to_string(),
-        }
+        self.name_or(key, self.key_id(key))
     }
 
     pub fn login(&self, key: u32) -> String {
@@ -175,6 +222,28 @@ impl Dataset {
     pub fn commit_url(&self, commit: &CommitRecord) -> String {
         let repo = self.repo(commit.repo);
         format!("https://github.com/{}/{}/commit/{}", repo.owner, repo.name, commit.sha_hex())
+    }
+
+    /// The fields every commit list shows; views add their own on top.
+    pub(crate) fn commit_view(&self, index: u32) -> Value {
+        let commit = &self.snapshot.commits[index as usize];
+        fn git_name(name: &str) -> &str {
+            if name.is_empty() { "Unknown" } else { name }
+        }
+        json!({
+            "sha": commit.sha_hex(),
+            "repository_id": self.repo(commit.repo).id,
+            "repository": self.repo(commit.repo).full_name(),
+            "target_branches": self.commit_branches[index as usize].iter().map(|b| self.branch(*b)).collect::<Vec<_>>(),
+            "committed_at": iso(commit.committed_at),
+            "author_id": self.key_id(commit.author),
+            "author_name": self.name_or(commit.author, git_name(&commit.author_name)),
+            "author_login": self.login(commit.author),
+            "committer_id": self.key_id(commit.committer),
+            "committer_name": self.name_or(commit.committer, git_name(&commit.committer_name)),
+            "committer_login": self.login(commit.committer),
+            "url": self.commit_url(commit),
+        })
     }
 
     pub fn pr_url(&self, pr: &Pr) -> String {
@@ -410,10 +479,6 @@ impl<K: Hash + Eq + Clone, V: Default> Ordered<K, V> {
     pub fn len(&self) -> usize {
         self.entries.len()
     }
-}
-
-pub(crate) fn date_str(day: i32) -> String {
-    format_date(day)
 }
 
 #[cfg(test)]

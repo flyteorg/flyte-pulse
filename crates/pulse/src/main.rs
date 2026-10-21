@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Result, bail};
 use clap::{Args, Parser, Subcommand};
@@ -101,8 +100,7 @@ fn build(args: BuildArgs) -> Result<()> {
     let catalog = load_catalog(&args.config_dir.join("repositories.yaml"))?;
     apply_identity_rules(&mut state.contributors, &catalog.identity_rules);
     let companies = load_company_catalog(&args.config_dir, &state.contributors)?;
-    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as i64;
-    let snapshot = build_snapshot(&state, &companies, now);
+    let snapshot = build_snapshot(&state, &companies, pulse::report::now_seconds());
     let meta = write_snapshot(&snapshot, &args.out)?;
     eprintln!("{}", serde_json::to_string_pretty(&meta)?);
     Ok(())

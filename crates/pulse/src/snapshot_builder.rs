@@ -16,10 +16,7 @@ use pulse_core::time::{format_date, format_timestamp};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 
-use crate::attribution::{
-    TrailerRole, ai_model_identity, commit_subject, is_ai_name, normalized_ai_name, resolve_trailer_contributor,
-    trailer_person, trailers,
-};
+use crate::attribution::{TrailerRole, ai_model_identity, commit_subject, is_ai_name, normalized_ai_name};
 use crate::companies::CompanyCatalog;
 use crate::config::hex;
 use crate::metrics::{Facts, build_company_metrics, build_daily_metrics};
@@ -33,12 +30,25 @@ struct Interner<'a> {
     branch_index: HashMap<String, u32>,
     identities: Vec<AiIdentity>,
     identity_index: HashMap<AiIdentity, u32>,
+    /// AI identity per raw attribution name, so each name is parsed once.
+    identity_by_name: HashMap<String, u32>,
+    /// Contributor key per normalized display name or login of an AI account.
+    ai_contributors: HashMap<String, u32>,
 }
 
 impl<'a> Interner<'a> {
     fn new(facts: &'a Facts<'a>) -> Self {
-        let contributor_index =
+        let contributor_index: HashMap<String, u32> =
             facts.state.contributors.iter().enumerate().map(|(i, c)| (c.id.clone(), i as u32)).collect();
+        let mut ai_contributors = HashMap::new();
+        for contributor in facts.state.contributors.iter().filter(|c| c.identity_kind.eq_ignore_ascii_case("AI")) {
+            let Some(&key) = contributor_index.get(&contributor.id) else { continue };
+            for name in [&contributor.display_name, &contributor.login].map(|n| normalized_ai_name(n)) {
+                if !name.is_empty() {
+                    ai_contributors.entry(name).or_insert(key);
+                }
+            }
+        }
         Self {
             facts,
             contributor_index,
@@ -48,6 +58,8 @@ impl<'a> Interner<'a> {
             branch_index: HashMap::from([(String::new(), 0)]),
             identities: Vec::new(),
             identity_index: HashMap::new(),
+            identity_by_name: HashMap::new(),
+            ai_contributors,
         }
     }
 
@@ -79,15 +91,22 @@ impl<'a> Interner<'a> {
     }
 
     fn identity(&mut self, name: &str) -> u32 {
+        if let Some(&index) = self.identity_by_name.get(name) {
+            return index;
+        }
         let identity = ai_model_identity(name);
         let identity =
             AiIdentity { key: identity.key, provider: identity.provider, model: identity.model, name: identity.name };
-        if let Some(&index) = self.identity_index.get(&identity) {
-            return index;
-        }
-        let index = self.identities.len() as u32;
-        self.identities.push(identity.clone());
-        self.identity_index.insert(identity, index);
+        let index = match self.identity_index.get(&identity) {
+            Some(&index) => index,
+            None => {
+                let index = self.identities.len() as u32;
+                self.identities.push(identity.clone());
+                self.identity_index.insert(identity, index);
+                index
+            }
+        };
+        self.identity_by_name.insert(name.to_string(), index);
         index
     }
 
@@ -103,26 +122,18 @@ impl<'a> Interner<'a> {
     }
 
     /// The AI contributor whose display name or login matches a trailer name.
-    fn ai_contributor(&mut self, name: &str) -> u32 {
-        let normalized = normalized_ai_name(name);
-        if normalized.is_empty() {
-            return NONE;
-        }
-        let found = self.facts.state.contributors.iter().find(|c| {
-            c.identity_kind.eq_ignore_ascii_case("AI")
-                && (normalized_ai_name(&c.display_name) == normalized || normalized_ai_name(&c.login) == normalized)
-        });
-        found.map(|c| self.key(&c.id)).unwrap_or(NONE)
+    fn ai_contributor(&self, name: &str) -> u32 {
+        self.ai_contributors.get(&normalized_ai_name(name)).copied().unwrap_or(NONE)
     }
 }
 
-fn commit_ai(interner: &mut Interner, commit: &Commit) -> Option<Box<CommitAi>> {
+fn commit_ai<'a>(interner: &mut Interner<'a>, commit: &'a Commit) -> Option<Box<CommitAi>> {
     let facts = interner.facts;
     let author_id = commit.author_contributor_id.as_str();
     let ai_author = facts.kind(author_id) == "AI";
     let author_label = facts.label(author_id).unwrap_or(&commit.author_name).to_string();
     let author_provider_identity = interner.provider_identity(&author_label, author_id);
-    let parsed = trailers(&commit.message);
+    let parsed = facts.commit_trailers(commit);
     if !ai_author && author_provider_identity == NONE && parsed.is_empty() {
         return None;
     }
@@ -137,31 +148,28 @@ fn commit_ai(interner: &mut Interner, commit: &Commit) -> Option<Box<CommitAi>> 
     let mut has_coauthor_trailer = false;
     let mut has_assisted_trailer = false;
     let mut trailer_records = Vec::new();
-    for (role, raw) in &parsed {
-        let person = trailer_person(raw);
-        let is_ai = is_ai_name(&person, &facts.known_ai_names);
-        match role {
+    for trailer in parsed {
+        match trailer.role {
             TrailerRole::CoAuthoredBy => {
                 has_coauthor_trailer = true;
-                if is_ai {
-                    coauthor_names.insert(person.clone());
+                if trailer.is_ai {
+                    coauthor_names.insert(trailer.person.clone());
                 }
             }
             TrailerRole::AssistedBy => {
                 has_assisted_trailer = true;
-                if is_ai {
-                    assistant_names.insert(person.clone());
+                if trailer.is_ai {
+                    assistant_names.insert(trailer.person.clone());
                 }
             }
         }
-        let resolved = resolve_trailer_contributor(raw, &facts.aliases);
-        let mut ai_identity = interner.provider_identity(&person, &resolved);
-        if ai_identity == NONE && is_ai {
-            ai_identity = interner.identity(&person);
+        let mut ai_identity = interner.provider_identity(&trailer.person, &trailer.resolved);
+        if ai_identity == NONE && trailer.is_ai {
+            ai_identity = interner.identity(&trailer.person);
         }
         trailer_records.push(Trailer {
-            co_authored: *role == TrailerRole::CoAuthoredBy,
-            resolved: interner.key(&resolved),
+            co_authored: trailer.role == TrailerRole::CoAuthoredBy,
+            resolved: interner.key(&trailer.resolved),
             ai_identity,
         });
     }

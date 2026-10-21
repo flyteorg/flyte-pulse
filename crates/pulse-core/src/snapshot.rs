@@ -64,6 +64,16 @@ impl Repo {
             format!("{}/{}", self.owner, self.name)
         }
     }
+
+    pub fn status_label(&self) -> &str {
+        if self.status.is_empty() { "UNKNOWN" } else { &self.status }
+    }
+
+    /// The rows a repository shows: one per target branch when several are tracked,
+    /// otherwise a single repository-wide row (`None`).
+    pub fn branch_views(&self) -> Vec<Option<&TargetBranch>> {
+        if self.target_branches.len() > 1 { self.target_branches.iter().map(Some).collect() } else { vec![None] }
+    }
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -245,6 +255,26 @@ pub struct Trailer {
     pub ai_identity: u32,
 }
 
+/// How an AI took part in a commit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AiRole {
+    /// The commit author is an AI account.
+    Author,
+    /// Named in a `Co-Authored-By` trailer.
+    CoAuthor,
+    /// Named in an `Assisted-By` trailer.
+    Assistant,
+}
+
+impl AiRole {
+    pub const ALL: [AiRole; 3] = [AiRole::Author, AiRole::CoAuthor, AiRole::Assistant];
+
+    /// Position in per-role arrays.
+    pub fn index(self) -> usize {
+        self as usize
+    }
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct CommitAi {
     /// The commit author's identity kind is AI.
@@ -257,6 +287,29 @@ pub struct CommitAi {
     pub has_coauthor_trailer: bool,
     pub has_assisted_trailer: bool,
     pub trailers: Vec<Trailer>,
+}
+
+impl CommitAi {
+    /// The roles AIs played in the commit, in [`AiRole::ALL`] order.
+    pub fn roles(&self) -> impl Iterator<Item = AiRole> + '_ {
+        [
+            (self.ai_author, AiRole::Author),
+            (!self.coauthors.is_empty(), AiRole::CoAuthor),
+            (!self.assistants.is_empty(), AiRole::Assistant),
+        ]
+        .into_iter()
+        .filter_map(|(present, role)| present.then_some(role))
+    }
+
+    /// Every AI attribution as `(role, AI identity, contributor key)`: the AI author
+    /// (`author` is the commit's author key), then co-authors, then assistants.
+    pub fn attributions(&self, author: u32) -> impl Iterator<Item = (AiRole, u32, u32)> + '_ {
+        self.ai_author
+            .then_some((AiRole::Author, self.ai_author_identity, author))
+            .into_iter()
+            .chain(self.coauthors.iter().map(|n| (AiRole::CoAuthor, n.identity, n.contributor)))
+            .chain(self.assistants.iter().map(|n| (AiRole::Assistant, n.identity, n.contributor)))
+    }
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]

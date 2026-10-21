@@ -5,9 +5,10 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use serde_json::{Value, json};
 
 use super::activity::sort_by_score;
-use super::{Ordered, View, date_str, day_of, fold, in_range, iso, normalized_ai_name};
+use super::{Ordered, View, day_of, fold, in_range, normalized_ai_name};
 use crate::AI_NAME_ALIASES;
-use crate::snapshot::{MetricKind, NONE};
+use crate::snapshot::{AiIdentity, AiRole, MetricKind, NONE};
+use crate::time::format_date;
 
 #[derive(Default)]
 pub(crate) struct AiQuery<'a> {
@@ -23,23 +24,55 @@ pub(crate) struct AiQuery<'a> {
     pub top_limit: Option<usize>,
 }
 
-const AUTHORED: usize = 0;
-const COAUTHORED: usize = 1;
-const ASSISTED: usize = 2;
+/// Labels per [`AiRole`], in `AiRole::ALL` order.
 const CATEGORY_LABELS: [&str; 3] = ["AI author", "AI co-author", "AI assisted"];
 
+fn label(role: AiRole) -> &'static str {
+    CATEGORY_LABELS[role.index()]
+}
+
+/// The flag a pull request gets from a commit with this AI role.
+fn commit_flag(role: AiRole) -> &'static str {
+    match role {
+        AiRole::Author => "ai_commit_author",
+        AiRole::CoAuthor => "ai_coauthored",
+        AiRole::Assistant => "ai_assisted",
+    }
+}
+
+/// One AI identity's activity, keyed by the identity key.
 #[derive(Default)]
-struct Identity {
-    ids: BTreeSet<u32>,
-    logins: BTreeSet<String>,
-    name: String,
-    provider: String,
-    model: String,
-    commits: HashSet<u32>,
-    categories: [HashSet<u32>; 3],
-    pull_requests: HashSet<u32>,
-    shared_additions: i64,
-    shared_deletions: i64,
+pub(super) struct Identity {
+    pub ids: BTreeSet<u32>,
+    pub logins: BTreeSet<String>,
+    pub name: String,
+    pub provider: String,
+    pub model: String,
+    pub commits: HashSet<u32>,
+    /// Commits per [`AiRole`].
+    pub categories: [HashSet<u32>; 3],
+    pub pull_requests: HashSet<u32>,
+    pub shared_additions: i64,
+    pub shared_deletions: i64,
+}
+
+impl Identity {
+    /// Take the name, provider, and model from the first identity seen for the key.
+    pub fn describe(&mut self, model: &AiIdentity) {
+        if self.name.is_empty() && self.provider.is_empty() {
+            self.name = model.name.clone();
+            self.provider = model.provider.clone();
+            self.model = model.model.clone();
+        }
+    }
+
+    fn absorb(&mut self, other: &Identity) {
+        self.commits.extend(&other.commits);
+        self.pull_requests.extend(&other.pull_requests);
+        for (mine, theirs) in self.categories.iter_mut().zip(&other.categories) {
+            mine.extend(theirs);
+        }
+    }
 }
 
 #[derive(Default)]
@@ -57,16 +90,16 @@ struct Totals {
 
 struct CommitRow {
     index: u32,
-    categories: Vec<&'static str>,
+    roles: Vec<AiRole>,
     identity_keys: BTreeSet<String>,
-    identity_categories: HashMap<String, BTreeSet<usize>>,
+    identity_categories: HashMap<String, BTreeSet<AiRole>>,
 }
 
 struct PrRow {
     index: u32,
     flags: BTreeSet<&'static str>,
     identity_keys: BTreeSet<String>,
-    identity_categories: HashMap<String, BTreeSet<usize>>,
+    identity_categories: HashMap<String, BTreeSet<AiRole>>,
 }
 
 impl View<'_> {
@@ -74,7 +107,7 @@ impl View<'_> {
         let data = self.data;
         let snapshot = &data.snapshot;
         let repo_filter = query.repository_id.map(|id| data.repo_index(id).unwrap_or(NONE));
-        let branch_filter = query.target_branch.map(|b| data.branch_index(b).unwrap_or(NONE - 1));
+        let branch_filter = query.target_branch.map(|b| data.branch_filter(b));
         let commit_in_scope = |index: usize| {
             let commit = &snapshot.commits[index];
             repo_filter.is_none_or(|r| r == commit.repo)
@@ -93,11 +126,7 @@ impl View<'_> {
             let model = &snapshot.ai_identities[identity as usize];
             let key = if model.key.is_empty() { format!("id:{}", data.key_id(contributor)) } else { model.key.clone() };
             let entry = activity.entry(key.clone());
-            if entry.name.is_empty() && entry.provider.is_empty() {
-                entry.name = model.name.clone();
-                entry.provider = model.provider.clone();
-                entry.model = model.model.clone();
-            }
+            entry.describe(model);
             if contributor != NONE {
                 entry.ids.insert(contributor);
                 let login = data.login(contributor);
@@ -113,32 +142,19 @@ impl View<'_> {
         for (index, commit) in snapshot.commits.iter().enumerate() {
             let Some(ai) = &commit.ai else { continue };
             let commit_index = index as u32;
-            if ai.ai_author {
-                ensure(&mut activity, ai.ai_author_identity, commit.author);
-            }
-            for name in ai.coauthors.iter().chain(&ai.assistants) {
-                ensure(&mut activity, name.identity, name.contributor);
+            for (_, identity, contributor) in ai.attributions(commit.author) {
+                ensure(&mut activity, identity, contributor);
             }
             let mut identity_keys = BTreeSet::new();
-            let mut identity_categories: HashMap<String, BTreeSet<usize>> = HashMap::new();
+            let mut identity_categories: HashMap<String, BTreeSet<AiRole>> = HashMap::new();
             if commit_in_scope(index) {
-                let mut record =
-                    |activity: &mut Ordered<String, Identity>, identity: u32, contributor: u32, category: usize| {
-                        let key = ensure(activity, identity, contributor);
-                        let entry = activity.entry(key.clone());
-                        entry.commits.insert(commit_index);
-                        entry.categories[category].insert(commit_index);
-                        identity_keys.insert(key.clone());
-                        identity_categories.entry(key).or_default().insert(category);
-                    };
-                if ai.ai_author {
-                    record(&mut activity, ai.ai_author_identity, commit.author, AUTHORED);
-                }
-                for name in &ai.coauthors {
-                    record(&mut activity, name.identity, name.contributor, COAUTHORED);
-                }
-                for name in &ai.assistants {
-                    record(&mut activity, name.identity, name.contributor, ASSISTED);
+                for (role, identity, contributor) in ai.attributions(commit.author) {
+                    let key = ensure(&mut activity, identity, contributor);
+                    let entry = activity.entry(key.clone());
+                    entry.commits.insert(commit_index);
+                    entry.categories[role.index()].insert(commit_index);
+                    identity_keys.insert(key.clone());
+                    identity_categories.entry(key).or_default().insert(role);
                 }
             }
             if ai.has_coauthor_trailer {
@@ -147,41 +163,25 @@ impl View<'_> {
             if ai.has_assisted_trailer {
                 totals.assisted_trailer.insert(commit_index);
             }
-            let mut categories = Vec::new();
-            for (flag, category, label) in [
-                (ai.ai_author, AUTHORED, CATEGORY_LABELS[AUTHORED]),
-                (!ai.coauthors.is_empty(), COAUTHORED, CATEGORY_LABELS[COAUTHORED]),
-                (!ai.assistants.is_empty(), ASSISTED, CATEGORY_LABELS[ASSISTED]),
-            ] {
-                if flag {
-                    categories.push(label);
-                    totals.commits[category].insert(commit_index);
-                }
+            let roles: Vec<AiRole> = ai.roles().collect();
+            for role in &roles {
+                totals.commits[role.index()].insert(commit_index);
             }
-            if categories.is_empty() {
+            if roles.is_empty() {
                 continue;
             }
             totals.commits_with_ai.insert(commit_index);
-            commit_rows.push(CommitRow { index: commit_index, categories, identity_keys, identity_categories });
+            commit_rows.push(CommitRow { index: commit_index, roles, identity_keys, identity_categories });
         }
         let commit_keys: HashMap<u32, &CommitRow> = commit_rows.iter().map(|r| (r.index, r)).collect();
 
         // PR flags from the AI attribution of their commits.
         let mut pr_flags: HashMap<u32, BTreeSet<&'static str>> = HashMap::new();
         let mut pr_identities: HashMap<u32, BTreeSet<String>> = HashMap::new();
-        let mut pr_categories: HashMap<u32, HashMap<String, BTreeSet<usize>>> = HashMap::new();
+        let mut pr_categories: HashMap<u32, HashMap<String, BTreeSet<AiRole>>> = HashMap::new();
         for &(pr, commit) in &snapshot.pr_commits {
             if let Some(ai) = &snapshot.commits[commit as usize].ai {
-                let flags = pr_flags.entry(pr).or_default();
-                if ai.ai_author {
-                    flags.insert("ai_commit_author");
-                }
-                if !ai.coauthors.is_empty() {
-                    flags.insert("ai_coauthored");
-                }
-                if !ai.assistants.is_empty() {
-                    flags.insert("ai_assisted");
-                }
+                pr_flags.entry(pr).or_default().extend(ai.roles().map(commit_flag));
             }
             if !pr_in_scope(pr) {
                 continue;
@@ -200,13 +200,13 @@ impl View<'_> {
         for &index in &data.prs_newest_first {
             let pr = &snapshot.pull_requests[index as usize];
             let mut flags = pr_flags.get(&index).cloned().unwrap_or_default();
-            if data.kind(pr.author).eq_ignore_ascii_case("AI") {
+            if data.is_ai(pr.author) {
                 flags.insert("ai_author");
                 if pr_in_scope(index) && pr.author_ai_identity != NONE {
                     let key = ensure(&mut activity, pr.author_ai_identity, pr.author);
                     activity.entry(key.clone()).pull_requests.insert(index);
                     pr_identities.entry(index).or_default().insert(key.clone());
-                    pr_categories.entry(index).or_default().entry(key).or_default().insert(AUTHORED);
+                    pr_categories.entry(index).or_default().entry(key).or_default().insert(AiRole::Author);
                 }
             }
             for flag in &flags {
@@ -248,9 +248,8 @@ impl View<'_> {
             let commit = &snapshot.commits[row.index as usize];
             for branch in branch_names_for(commit.repo, row.index) {
                 let entry = by_branch.entry((commit.repo, branch));
-                for label in &row.categories {
-                    let slot = CATEGORY_LABELS.iter().position(|l| l == label).unwrap_or(0);
-                    entry[slot].insert(row.index);
+                for role in &row.roles {
+                    entry[role.index()].insert(row.index);
                 }
             }
         }
@@ -363,9 +362,9 @@ impl View<'_> {
                 "provider": identity.provider,
                 "model": identity.model,
                 "commits_with_ai": identity.commits.len(),
-                "commits_ai_authored": identity.categories[AUTHORED].len(),
-                "commits_ai_coauthored": identity.categories[COAUTHORED].len(),
-                "commits_ai_assisted": identity.categories[ASSISTED].len(),
+                "commits_ai_authored": identity.categories[AiRole::Author.index()].len(),
+                "commits_ai_coauthored": identity.categories[AiRole::CoAuthor.index()].len(),
+                "commits_ai_assisted": identity.categories[AiRole::Assistant.index()].len(),
                 "pull_requests_with_ai": identity.pull_requests.len(),
                 "shared_additions": identity.shared_additions,
                 "shared_deletions": identity.shared_deletions,
@@ -386,20 +385,13 @@ impl View<'_> {
             })
             .map(|(key, i)| identity_value(key, i))
             .collect();
-        top_ais.sort_by(|a, b| {
-            (score(b), fold(b["name"].as_str().unwrap_or_default()))
-                .cmp(&(score(a), fold(a["name"].as_str().unwrap_or_default())))
-        });
+        top_ais.sort_by_cached_key(|v| std::cmp::Reverse((score(v), fold(v["name"].as_str().unwrap_or_default()))));
 
         let mut providers: Ordered<String, Identity> = Ordered::new();
         for (_, identity) in &activity.entries {
             let entry = providers.entry(identity.provider.clone());
             entry.provider = identity.provider.clone();
-            entry.commits.extend(&identity.commits);
-            entry.pull_requests.extend(&identity.pull_requests);
-            for category in 0..3 {
-                entry.categories[category].extend(&identity.categories[category]);
-            }
+            entry.absorb(identity);
         }
         let mut top_ai_providers: Vec<Value> = providers
             .entries
@@ -410,19 +402,17 @@ impl View<'_> {
                     "key": provider_key(provider),
                     "provider": provider,
                     "commits_with_ai": p.commits.len(),
-                    "commits_ai_authored": p.categories[AUTHORED].len(),
-                    "commits_ai_coauthored": p.categories[COAUTHORED].len(),
-                    "commits_ai_assisted": p.categories[ASSISTED].len(),
+                    "commits_ai_authored": p.categories[AiRole::Author.index()].len(),
+                    "commits_ai_coauthored": p.categories[AiRole::CoAuthor.index()].len(),
+                    "commits_ai_assisted": p.categories[AiRole::Assistant.index()].len(),
                     "pull_requests_with_ai": p.pull_requests.len(),
                     "shared_additions": shared.0,
                     "shared_deletions": shared.1,
                 })
             })
             .collect();
-        top_ai_providers.sort_by(|a, b| {
-            (score(b), fold(b["provider"].as_str().unwrap_or_default()))
-                .cmp(&(score(a), fold(a["provider"].as_str().unwrap_or_default())))
-        });
+        top_ai_providers
+            .sort_by_cached_key(|v| std::cmp::Reverse((score(v), fold(v["provider"].as_str().unwrap_or_default()))));
 
         let ai_names = |names: &[crate::snapshot::AiName], selected: Option<&HashSet<String>>| -> Vec<Value> {
             names
@@ -434,32 +424,21 @@ impl View<'_> {
         let commit_value = |row: &CommitRow, categories: Vec<&str>, selected: Option<&HashSet<String>>| -> Value {
             let commit = &snapshot.commits[row.index as usize];
             let ai = commit.ai.as_deref();
-            let fallback = |name: &str| if name.is_empty() { "Unknown".to_string() } else { name.to_string() };
-            json!({
-                "sha": commit.sha_hex(),
-                "repository_id": data.repo(commit.repo).id,
-                "repository": data.repo(commit.repo).full_name(),
-                "target_branches": data.commit_branches[row.index as usize].iter().map(|b| data.branch(*b)).collect::<Vec<_>>(),
-                "committed_at": iso(commit.committed_at),
-                "subject": commit.subject,
-                "author_id": data.key_id(commit.author),
-                "author": data.name_or(commit.author, "Unknown"),
-                "author_name": data.name_or(commit.author, &fallback(&commit.author_name)),
-                "author_login": data.login(commit.author),
-                "committer_name": data.name_or(commit.committer, &fallback(&commit.committer_name)),
-                "committer_id": data.key_id(commit.committer),
-                "committer_login": data.login(commit.committer),
-                "categories": categories,
-                "ai_coauthors": ai.map(|a| ai_names(&a.coauthors, selected)).unwrap_or_default(),
-                "ai_assistants": ai.map(|a| ai_names(&a.assistants, selected)).unwrap_or_default(),
-                "url": data.commit_url(commit),
-            })
+            let mut value = data.commit_view(row.index);
+            value["subject"] = json!(commit.subject);
+            value["author"] = json!(data.name_or(commit.author, "Unknown"));
+            value["categories"] = json!(categories);
+            value["ai_coauthors"] = json!(ai.map(|a| ai_names(&a.coauthors, selected)).unwrap_or_default());
+            value["ai_assistants"] = json!(ai.map(|a| ai_names(&a.assistants, selected)).unwrap_or_default());
+            value
         };
         let pr_value = |row: &PrRow, categories: Value| -> Value {
             let mut value = data.pull_request_view(row.index);
             value["categories"] = categories;
             value
         };
+        let labels =
+            |categories: BTreeSet<AiRole>| -> Vec<&'static str> { categories.into_iter().map(label).collect() };
 
         let identity_detail = query.identity_key.as_deref().map(|identity_key| {
             let requested = activity.get(&identity_key.to_string());
@@ -492,18 +471,14 @@ impl View<'_> {
                 activity.entries.iter().filter(|(k, _)| selected.contains(k)).map(|(_, i)| i).collect();
             let mut aggregate = Identity::default();
             for identity in &selected_identities {
-                aggregate.commits.extend(&identity.commits);
-                aggregate.pull_requests.extend(&identity.pull_requests);
-                for category in 0..3 {
-                    aggregate.categories[category].extend(&identity.categories[category]);
-                }
+                aggregate.absorb(identity);
             }
             let provider_name = if !query.provider.is_empty() {
                 query.provider.clone()
             } else {
                 selected_identities.first().map_or("Other".to_string(), |i| i.provider.clone())
             };
-            let categories_for = |map: &HashMap<String, BTreeSet<usize>>| -> BTreeSet<usize> {
+            let categories_for = |map: &HashMap<String, BTreeSet<AiRole>>| -> BTreeSet<AiRole> {
                 selected.iter().filter_map(|k| map.get(k)).flatten().copied().collect()
             };
             let identity_commits: Vec<&CommitRow> =
@@ -530,7 +505,7 @@ impl View<'_> {
             let daily: Vec<Value> = (detail_start..=detail_end)
                 .map(|day| {
                     let (prs, commits) = daily_values.get(&day).copied().unwrap_or_default();
-                    json!({"date": date_str(day), "pull_requests_merged": prs, "commits": commits})
+                    json!({"date": format_date(day), "pull_requests_merged": prs, "commits": commits})
                 })
                 .collect();
 
@@ -541,7 +516,7 @@ impl View<'_> {
                     let entry = repo_activity.entry((commit.repo, branch));
                     entry[0].insert(row.index);
                     for category in categories_for(&row.identity_categories) {
-                        entry[1 + category].insert(row.index);
+                        entry[1 + category.index()].insert(row.index);
                     }
                 }
             }
@@ -550,7 +525,7 @@ impl View<'_> {
                 let entry = repo_activity.entry((pr.repo, pr_branch(pr.repo, pr.branch)));
                 entry[4].insert(row.index);
                 for category in categories_for(&row.identity_categories) {
-                    entry[5 + category].insert(row.index);
+                    entry[5 + category.index()].insert(row.index);
                 }
             }
             let mut repository_activity: Vec<Value> = repo_activity
@@ -576,9 +551,6 @@ impl View<'_> {
             sort_by_score(&mut repository_activity, |v| {
                 v["commits"].as_i64().unwrap_or(0) + v["pull_requests_with_ai"].as_i64().unwrap_or(0)
             });
-            let mut repository_options: Vec<Value> =
-                snapshot.repositories.iter().map(|r| json!({"id": r.id, "name": r.full_name()})).collect();
-            repository_options.sort_by_key(|r| fold(r["name"].as_str().unwrap_or_default()));
             let filter_days = match (query.start, query.end) {
                 (Some(start), Some(end)) => json!(end - start + 1),
                 _ => json!("all"),
@@ -605,9 +577,6 @@ impl View<'_> {
                 selected.iter().filter_map(|k| shared_by_identity.get(k)).fold((0, 0), |acc, v| (acc.0 + v.0, acc.1 + v.1))
             };
             let first = selected_identities.first();
-            let labels = |categories: BTreeSet<usize>| -> Vec<&str> {
-                categories.into_iter().map(|c| CATEGORY_LABELS[c]).collect()
-            };
             json!({
                 "identity": {
                     "key": if provider_profile { format!("provider:{requested_provider}") } else { identity_key.to_string() },
@@ -627,9 +596,9 @@ impl View<'_> {
                 },
                 "summary": {
                     "commits_with_ai": aggregate.commits.len(),
-                    "commits_ai_authored": aggregate.categories[AUTHORED].len(),
-                    "commits_ai_coauthored": aggregate.categories[COAUTHORED].len(),
-                    "commits_ai_assisted": aggregate.categories[ASSISTED].len(),
+                    "commits_ai_authored": aggregate.categories[AiRole::Author.index()].len(),
+                    "commits_ai_coauthored": aggregate.categories[AiRole::CoAuthor.index()].len(),
+                    "commits_ai_assisted": aggregate.categories[AiRole::Assistant.index()].len(),
                     "pull_requests_with_ai": aggregate.pull_requests.len(),
                     "shared_additions": shared_additions,
                     "shared_deletions": shared_deletions,
@@ -643,7 +612,7 @@ impl View<'_> {
                 "recent_pull_requests": identity_prs.iter().take(100)
                     .map(|r| pr_value(r, json!(labels(categories_for(&r.identity_categories)))))
                     .collect::<Vec<_>>(),
-                "repository_options": repository_options,
+                "repository_options": data.repository_options(),
                 "filters": {"days": filter_days, "repository_id": query.repository_id.unwrap_or("")},
             })
         });
@@ -654,9 +623,9 @@ impl View<'_> {
         json!({
             "summary": {
                 "commits_with_ai": totals.commits_with_ai.len(),
-                "commits_ai_authored": totals.commits[AUTHORED].len(),
-                "commits_ai_coauthored": totals.commits[COAUTHORED].len(),
-                "commits_ai_assisted": totals.commits[ASSISTED].len(),
+                "commits_ai_authored": totals.commits[AiRole::Author.index()].len(),
+                "commits_ai_coauthored": totals.commits[AiRole::CoAuthor.index()].len(),
+                "commits_ai_assisted": totals.commits[AiRole::Assistant.index()].len(),
                 "pull_requests_with_ai": totals.pull_requests_with_ai.len(),
                 "pull_requests_ai_authored": totals.pr_ai_author.len(),
                 "pull_requests_with_ai_authored_commit": totals.pr_ai_commit_author.len(),
@@ -669,7 +638,7 @@ impl View<'_> {
             "top_ai_providers": top_ai_providers,
             "by_repository": by_repository,
             "recent_commits": commit_rows.iter().take(100)
-                .map(|r| commit_value(r, r.categories.clone(), None))
+                .map(|r| commit_value(r, r.roles.iter().copied().map(label).collect(), None))
                 .collect::<Vec<_>>(),
             "recent_pull_requests": pr_rows.iter().take(100)
                 .map(|r| pr_value(r, json!(r.flags.iter().collect::<Vec<_>>())))

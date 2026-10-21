@@ -1,7 +1,7 @@
 //! GitHub GraphQL client with rate-limit handling and the collector's queries.
 
 use std::collections::HashMap;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
 use pulse_core::state::Language;
@@ -81,13 +81,9 @@ pub struct GitHub {
     max_wait: Duration,
 }
 
-fn now_epoch() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
-}
-
 fn reset_delay(reset_at: Option<i64>) -> Duration {
     match reset_at {
-        Some(reset) => Duration::from_secs((reset - now_epoch()).max(0) as u64 + 5),
+        Some(reset) => Duration::from_secs((reset - crate::report::now_seconds()).max(0) as u64 + 5),
         None => Duration::from_secs(60),
     }
 }
