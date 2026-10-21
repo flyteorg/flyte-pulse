@@ -18,7 +18,7 @@ pub fn apply(discovery: &Discovery, config_dir: &Path, contributors: &[Contribut
     let mut affiliations = Lines::read(&affiliations_path)?;
 
     for mapping in &discovery.aliases {
-        companies.add_list_item(&mapping.company_id, "aliases", &quote(&mapping.alias));
+        companies.add_list_item(&mapping.company_id, "aliases", &scalar(&mapping.alias));
     }
     for mapping in &discovery.domains {
         companies.add_list_item(&mapping.company_id, "domains", &mapping.domain);
@@ -26,10 +26,10 @@ pub fn apply(discovery: &Discovery, config_dir: &Path, contributors: &[Contribut
     for company in &discovery.companies {
         companies.append(&[
             format!("- id: {}", company.id),
-            format!("  canonical_name: {}", quote(&company.canonical_name)),
+            format!("  canonical_name: {}", scalar(&company.canonical_name)),
             format!("  website_url: {}", company.website_url),
             "  aliases:".to_string(),
-            format!("  - {}", quote(&company.alias)),
+            format!("  - {}", scalar(&company.alias)),
         ]);
         if !company.domains.is_empty() {
             companies.append(&["  domains:".to_string()]);
@@ -70,8 +70,23 @@ pub fn apply(discovery: &Discovery, config_dir: &Path, contributors: &[Contribut
     Ok(())
 }
 
-fn quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "''"))
+/// A string as a YAML scalar: plain, like hand-written entries, unless YAML would
+/// read it differently (as a boolean, null, or number, or because of indicator
+/// characters or surrounding spaces); then single-quoted.
+fn scalar(value: &str) -> String {
+    let plain = !value.is_empty()
+        && value.trim() == value
+        && !value.starts_with(|c: char| c.is_ascii_digit() || "-?:,[]{}#&*!|>'\"%@`+.~".contains(c))
+        && !value.ends_with(':')
+        && !value.contains(": ")
+        && !value.contains(" #")
+        && !value.chars().any(char::is_control)
+        && !matches!(
+            value.to_ascii_lowercase().as_str(),
+            "true" | "false" | "yes" | "no" | "on" | "off" | "y" | "n" | "null"
+        )
+        && value.parse::<f64>().is_err();
+    if plain { value.to_string() } else { format!("'{}'", value.replace('\'', "''")) }
 }
 
 fn undated(login: &str, company_id: &str) -> Vec<String> {
@@ -249,6 +264,48 @@ impl Lines {
             }
             (None, false) => appended.push(open_period(&change.login, &change.to, &change.date)),
             (None, true) => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::scalar;
+
+    #[test]
+    fn scalars_are_plain_unless_yaml_needs_quotes() {
+        let plain = ["OpenAI", "Acme Labs", "neptune.ai", "Nextdoor.com, Inc.", "AT&T", "O'Reilly", "C# Labs"];
+        for value in plain {
+            assert_eq!(scalar(value), value);
+        }
+        let quoted = [
+            ("@acme", "'@acme'"),
+            ("'quoted'", "'''quoted'''"),
+            ("true", "'true'"),
+            ("No", "'No'"),
+            ("null", "'null'"),
+            ("~", "'~'"),
+            ("2024", "'2024'"),
+            ("1e3", "'1e3'"),
+            ("NaN", "'NaN'"),
+            (".inf", "'.inf'"),
+            ("3M", "'3M'"),
+            (" Acme", "' Acme'"),
+            ("Acme ", "'Acme '"),
+            ("Acme: Labs", "'Acme: Labs'"),
+            ("Acme #1", "'Acme #1'"),
+            ("Acme:", "'Acme:'"),
+            ("[Acme]", "'[Acme]'"),
+            ("- Acme", "'- Acme'"),
+            ("", "''"),
+        ];
+        for (value, expected) in quoted {
+            assert_eq!(scalar(value), expected);
+        }
+        // Every form reads back as the same string.
+        for value in plain.into_iter().chain(quoted.map(|(value, _)| value)) {
+            let parsed: serde_yaml_ng::Value = serde_yaml_ng::from_str(&format!("key: {}", scalar(value))).unwrap();
+            assert_eq!(parsed["key"], serde_yaml_ng::Value::String(value.to_string()), "{value:?}");
         }
     }
 }
