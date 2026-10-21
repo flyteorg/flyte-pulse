@@ -388,6 +388,7 @@ a {
   background: transparent;
   color: var(--muted);
   font: 500 12px var(--font);
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -1089,12 +1090,18 @@ tbody tr:hover td {
   margin: 0 0 12px;
 }
 
-.contributor-ai .card {
+.review-panel .cards {
+  margin: 0 0 12px;
+}
+
+.contributor-ai .card,
+.review-panel .card {
   min-height: 88px;
   padding: 13px 15px;
 }
 
-.contributor-ai .card-value {
+.contributor-ai .card-value,
+.review-panel .card-value {
   font-size: 24px;
   margin-top: 5px;
 }

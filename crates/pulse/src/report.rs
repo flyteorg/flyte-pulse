@@ -99,6 +99,7 @@ pub fn snapshot_markdown(data_dir: &Path, today: i32) -> Result<String> {
         ("Pull requests merged", "pull_requests_merged"),
         ("Pull requests opened", "pull_requests_opened"),
         ("Commits", "commits"),
+        ("Pull requests reviewed", "reviews"),
         ("Active human contributors", "active_human_contributors"),
         ("New human contributors", "new_human_contributors"),
     ] {

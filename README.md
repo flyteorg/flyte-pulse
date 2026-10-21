@@ -47,10 +47,18 @@ GitHub Actions (daily)                          GitHub Pages
   PR commit lists without one API request per pull request. When a range reaches
   the shallow boundary, the fetch is deepened and the range recomputed.
 - **The GraphQL API is used only for what Git cannot provide:** pull request
-  metadata (about one point per 100 PRs), batched lookups of commit emails without
-  a known account, a 90-day public profile refresh, and each repository's language
-  breakdown (one point per repository per sync). Emails are never stored; the state
-  keeps a truncated SHA-256 per email.
+  metadata with each PR's submitted reviews (about one point per 100 PRs; the first
+  50 reviews come with the PR, and a longer review list costs one more request per
+  100 reviews), batched lookups of commit emails without a known account, a 90-day
+  public profile refresh, and each repository's language breakdown (one point per
+  repository per sync). Emails are never stored; the state keeps a truncated SHA-256
+  per email.
+- When the collector starts reading a new pull request field (reviews were the
+  first), the next sync reads every pull request of each repository once more and
+  records that in the repository's watermark (`pr_fields_version`). It needs no new
+  clone: Git work stays what an incremental sync would do, so older pull requests
+  keep their saved commit links. For all tracked repositories this costs about 200
+  points; pages of old pull requests get smaller when GitHub starts timing out.
 - Identifiers are stable across syncs: repositories are `github.com:<node id>`,
   people are `github:<account id>`, and pull requests use GitHub's numeric IDs.
 
@@ -68,19 +76,27 @@ Counting rules:
   `repositories.yaml`, which classify `web-flow` as a bot) is kept but not counted.
 - Each merged PR's full line diff is shared by its author and recognized human or
   AI co-authors; company credit uses the affiliation on each event's date.
+- A reviewer counts once per pull request, on the day of their first submitted
+  review (approval, requested changes, or comment). Reviews of one's own pull
+  request and reviews by bots and AI accounts are not counted, and reviewing alone
+  does not make someone an active or new contributor. Review coverage is the share
+  of merged pull requests (not bot-authored) with such a review before the merge;
+  time to first review runs from opening, including time as a draft, to that
+  review.
 - The site is public and has no login. It shows public GitHub activity and the
   reviewed company mappings from `config/`.
 
 ## State
 
-The collected state (repositories, contributors, pull requests, commits, links,
-watermarks) has two interchangeable formats; `pulse` picks one from the path:
+The collected state (repositories, contributors, pull requests and their reviews,
+commits, links, watermarks) has two interchangeable formats; `pulse` picks one from the path:
 
 - `*.json.gz` / `*.json`: one JSON document. Published as the `pulse-state.json.gz`
   asset of the `pulse-state` release after every sync.
 - any other path: a directory of sorted JSON-lines files (`manifest.json`,
   `repositories.jsonl`, `contributors.jsonl`, `email_identities.jsonl`, and
-  `pull_requests/`, `commits/`, `pull_request_commits/` split per repository).
+  `pull_requests/`, `pull_request_reviews/`, `commits/`, `pull_request_commits/`
+  split per repository).
   Committed to `state/` on the orphan `data` branch, so the history of every
   sync is kept with small diffs.
 

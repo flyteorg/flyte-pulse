@@ -74,15 +74,16 @@ export function pageHead(title, description = "") {
   return `<header class="page-head"><h1>${escapeHtml(title)}</h1>${description ? `<p>${escapeHtml(description)}</p>` : ""}</header>`;
 }
 
+// `entries` are [label, key] or [label, key, format] for values that are not counts.
 export function stats(summary, entries, pending = false) {
   return `<section class="cards" aria-label="Summary">${entries
-    .map(([label, key]) => {
+    .map(([label, key, format = number.format]) => {
       const loading = pending && summary[key] == null;
       const value = loading
         ? PulseLoading.indicator("Loading…", true)
         : summary[key] == null
           ? "—"
-          : number.format(summary[key]);
+          : escapeHtml(format(summary[key]));
       return `<article class="card" aria-busy="${loading}"><div class="card-label">${escapeHtml(label)}</div><div class="card-value">${value}</div></article>`;
     })
     .join("")}</section>`;
@@ -250,6 +251,34 @@ export function languagePanel(title, languages, subtitle) {
     )
     .join("");
   return `<section class="panel page-section language-panel">${heading}<div class="language-bar" role="img" aria-label="${escapeHtml(label)}">${bar}</div><ul class="language-legend">${legend}</ul></section>`;
+}
+
+// A fraction such as 0.874 as "87%".
+export function formatPercent(share) {
+  return share == null ? "—" : `${Math.round(share * 100)}%`;
+}
+
+export function formatHours(hours) {
+  if (hours == null) return "—";
+  if (hours < 1) return `${Math.max(1, Math.round(hours * 60))} min`;
+  if (hours < 48) return `${hours.toFixed(1)} h`;
+  return `${(hours / 24).toFixed(1)} days`;
+}
+
+// Review coverage and response time for the merged pull requests in a dashboard summary.
+export function reviewPanel(summary, subtitle) {
+  const coverage = summary.merged_pull_requests_for_coverage
+    ? `${number.format(summary.merged_pull_requests_reviewed)} of ${number.format(summary.merged_pull_requests_for_coverage)} merged pull requests had a review by someone other than the author before they merged.`
+    : "No pull requests were merged in this range.";
+  return `<section class="panel page-section review-panel"><div class="panel-head"><div><h2>Code review</h2><div class="subtitle">${escapeHtml(subtitle)}</div></div></div>${stats(
+    summary,
+    [
+      ["Review coverage", "review_coverage", formatPercent],
+      ["Median time to first review", "median_hours_to_first_review", formatHours],
+      ["PRs reviewed", "reviews"],
+      ["Active reviewers", "active_reviewers"],
+    ],
+  )}<p class="page-copy">${escapeHtml(coverage)} Time to first review runs from opening, including time as a draft. Each reviewer counts once per pull request; reviews of one’s own pull requests and reviews by bots and AI accounts are not counted.</p></section>`;
 }
 
 export function rangeStamp(days) {

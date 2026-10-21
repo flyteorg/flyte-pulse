@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::state::{Language, TargetBranch};
 
-pub const MAGIC: &[u8; 8] = b"PULSE\x00\x00\x02";
+pub const MAGIC: &[u8; 8] = b"PULSE\x00\x00\x03";
 pub const NONE: u32 = u32::MAX;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -116,6 +116,9 @@ pub enum MetricKind {
     Deletions,
     SharedAdditions,
     SharedDeletions,
+    /// Pull requests reviewed: each reviewer counts once per pull request, on the
+    /// day of their first review.
+    Reviews,
 }
 
 /// Daily activity per repository, contributor key, metric, and optional branch.
@@ -139,15 +142,17 @@ pub enum CompanyMetricKind {
     PullRequestsMerged,
     SharedAdditions,
     SharedDeletions,
+    Reviews,
 }
 
 impl CompanyMetricKind {
-    pub const ALL: [CompanyMetricKind; 5] = [
+    pub const ALL: [CompanyMetricKind; 6] = [
         Self::Commits,
         Self::PullRequestsOpened,
         Self::PullRequestsMerged,
         Self::SharedAdditions,
         Self::SharedDeletions,
+        Self::Reviews,
     ];
 
     pub fn name(self) -> &'static str {
@@ -157,6 +162,7 @@ impl CompanyMetricKind {
             Self::PullRequestsMerged => "pull_requests_merged",
             Self::SharedAdditions => "shared_additions",
             Self::SharedDeletions => "shared_deletions",
+            Self::Reviews => "reviews",
         }
     }
 }
@@ -203,6 +209,10 @@ pub struct Pr {
     pub state: String,
     pub created_at: Option<i64>,
     pub merged_at: Option<i64>,
+    /// First review by someone other than the author; reviews by bots and AI
+    /// accounts do not count. The pull request was reviewed if this is no later
+    /// than `merged_at`.
+    pub first_review_at: Option<i64>,
     pub branch: u32,
     pub additions: i64,
     pub deletions: i64,

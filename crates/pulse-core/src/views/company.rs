@@ -7,6 +7,9 @@ use serde_json::{Value, json};
 use super::{ApiError, ApiResult, Params, View, date_str, days_value, fold, iso, parse_days};
 use crate::snapshot::{Affiliation, Company, CompanyMetricKind, NONE};
 
+/// Per-metric company values indexed by [`CompanyMetricKind`].
+type Values = [i64; CompanyMetricKind::ALL.len()];
+
 /// Combine the current mapping and past periods, without inferring dates.
 pub(crate) fn profile_affiliations(
     current: &Affiliation,
@@ -104,9 +107,9 @@ impl View<'_> {
             start.is_none_or(|s| date >= s) && date <= end && repo_filter.is_none_or(|r| r == repo)
         };
 
-        let mut totals: HashMap<u32, [i64; 5]> = HashMap::new();
-        let mut daily: BTreeMap<i32, [i64; 5]> = BTreeMap::new();
-        let mut repository_totals: BTreeMap<(String, String), (u32, u32, [i64; 5])> = BTreeMap::new();
+        let mut totals: HashMap<u32, Values> = HashMap::new();
+        let mut daily: BTreeMap<i32, Values> = BTreeMap::new();
+        let mut repository_totals: BTreeMap<(String, String), (u32, u32, Values)> = BTreeMap::new();
         for row in &data.snapshot.company_metrics {
             if !in_scope(row.date, row.repo) || selected.is_some_and(|s| s != row.company) {
                 continue;
@@ -128,7 +131,7 @@ impl View<'_> {
             if include {
                 let entry = repository_totals
                     .entry((data.repo(row.repo).id.clone(), data.branch(row.branch).to_string()))
-                    .or_insert((row.repo, row.branch, [0; 5]));
+                    .or_insert((row.repo, row.branch, Values::default()));
                 entry.2[metric] += row.value;
             }
         }
@@ -172,7 +175,7 @@ impl View<'_> {
             }
         }
 
-        let metric_values = |values: &[i64; 5]| -> serde_json::Map<String, Value> {
+        let metric_values = |values: &Values| -> serde_json::Map<String, Value> {
             CompanyMetricKind::ALL.iter().map(|k| (k.name().to_string(), json!(values[*k as usize]))).collect()
         };
         let mut rows: Vec<Value> = companies

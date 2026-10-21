@@ -148,6 +148,7 @@ fn write_state_dir(path: &Path, state: &State) -> Result<()> {
     write_partitioned(root, "pull_requests", &state.pull_requests, |r| &r.repository_id, &partitions)?;
     write_partitioned(root, "commits", &state.commits, |r| &r.repository_id, &partitions)?;
     write_partitioned(root, "pull_request_commits", &state.pull_request_commits, |r| &r.repository_id, &partitions)?;
+    write_partitioned(root, "pull_request_reviews", &state.pull_request_reviews, |r| &r.repository_id, &partitions)?;
     let manifest = Manifest {
         schema_version: state.schema_version,
         generated_at: state.generated_at,
@@ -160,6 +161,7 @@ fn write_state_dir(path: &Path, state: &State) -> Result<()> {
             ("pull_requests".into(), state.pull_requests.len()),
             ("commits".into(), state.commits.len()),
             ("pull_request_commits".into(), state.pull_request_commits.len()),
+            ("pull_request_reviews".into(), state.pull_request_reviews.len()),
         ]),
     };
     let mut manifest_json = serde_json::to_vec_pretty(&manifest)?;
@@ -235,6 +237,7 @@ fn read_state_dir(path: &Path) -> Result<State> {
     read_partitioned(&path.join("pull_requests"), &mut state.pull_requests)?;
     read_partitioned(&path.join("commits"), &mut state.commits)?;
     read_partitioned(&path.join("pull_request_commits"), &mut state.pull_request_commits)?;
+    read_partitioned(&path.join("pull_request_reviews"), &mut state.pull_request_reviews)?;
     state.normalize();
     Ok(state)
 }
@@ -283,7 +286,7 @@ pub fn read_gzip_or_plain(path: &Path) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pulse_core::state::{Commit, PullRequest, Repository};
+    use pulse_core::state::{Commit, PullRequest, PullRequestReview, Repository};
 
     fn sample() -> State {
         let mut state = State::new();
@@ -298,6 +301,14 @@ mod tests {
             repository_id: "github.com:R1".into(),
             provider_id: "7".into(),
             ..PullRequest::default()
+        });
+        state.pull_request_reviews.push(PullRequestReview {
+            repository_id: "github.com:R1".into(),
+            pull_request_id: "7".into(),
+            provider_id: "70".into(),
+            reviewer_contributor_id: "github:2".into(),
+            state: "APPROVED".into(),
+            ..PullRequestReview::default()
         });
         state.commits.push(Commit {
             repository_id: "github.com:R1".into(),
@@ -318,9 +329,11 @@ mod tests {
             assert_eq!(state.catalog_revision, "abc");
             assert_eq!(state.commits[0].message, "Line one\n\nCo-authored-by: x");
             assert_eq!(state.pull_requests.len(), 1);
+            assert_eq!(state.pull_request_reviews[0].state, "APPROVED");
             assert_eq!(state.watermarks.len(), 1);
         }
         assert!(dir.path().join("state/commits/flyteorg/flyte.jsonl").exists());
+        assert!(dir.path().join("state/pull_request_reviews/flyteorg/flyte.jsonl").exists());
         // Rewriting replaces the directory, dropping stale partitions.
         write_state(&dir.path().join("state"), &State::new()).unwrap();
         assert!(!dir.path().join("state/commits").exists());

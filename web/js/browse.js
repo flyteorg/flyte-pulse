@@ -10,6 +10,7 @@ import {
   escapeHtml,
   externalLink,
   formatDate,
+  formatPercent,
   languagePanel,
   number,
   page,
@@ -17,6 +18,7 @@ import {
   pendingPanel,
   rangeStamp,
   repositoryLink,
+  reviewPanel,
   setPageLoading,
   stats,
   table,
@@ -39,6 +41,7 @@ const repositorySortColumns = [
   ["merged", "Merged PRs"],
   ["commits", "Commits"],
   ["contributors", "Contributors"],
+  ["coverage", "Review coverage"],
 ];
 
 function repositorySortState(params) {
@@ -59,8 +62,10 @@ function repositoryTable(repositories, sort) {
       merged: "pull_requests_merged",
       commits: "commits",
       contributors: "active_contributors",
+      coverage: "review_coverage",
     }[sort.key];
-    return Number(item.summary[summaryKey]) || 0;
+    // Repositories without merged pull requests have no coverage; they sort below 0%.
+    return item.summary[summaryKey] ?? -1;
   };
   const ordered = [...repositories].sort((a, b) => {
     const aValue = value(a);
@@ -76,6 +81,7 @@ function repositoryTable(repositories, sort) {
     <td class="count">${number.format(item.summary.pull_requests_merged)}</td>
     <td class="count">${number.format(item.summary.commits)}</td>
     <td class="count">${number.format(item.summary.active_contributors)}</td>
+    <td class="count">${formatPercent(item.summary.review_coverage)}</td>
   </tr>`,
   );
   const headings = repositorySortColumns
@@ -417,6 +423,10 @@ function repositoryDetailPage(data) {
     (item) =>
       `<tr><td>${userLink(item.id, item.name, item.login)}</td><td class="count">${number.format(item.pull_requests_merged)}</td><td class="count">${number.format(item.commits)}</td></tr>`,
   );
+  const reviewers = (data.top_reviewers || []).map(
+    (item) =>
+      `<tr><td>${userLink(item.id, item.name, item.login)}</td><td class="count">${number.format(item.reviews)}</td><td class="count">${number.format(item.pull_requests_merged)}</td></tr>`,
+  );
   return (
     pageHead(repo.name, `${repo.status}${repo.module ? ` · ${repo.module}` : ""}`) +
     repositoryFilters(data) +
@@ -434,8 +444,10 @@ function repositoryDetailPage(data) {
       "Current code on the default branch, from GitHub’s language detection",
     ) +
     activityPanel(data.daily) +
+    reviewPanel(data.summary, "Merged pull requests in the selected range and branch") +
     `<div id="repository-company-share">${pendingPanel("Contributions by company")}</div>` +
-    `<section class="panel page-section"><h2>Top contributors</h2>${table(["Contributor", "Merged PRs", "Commits"], contributors, "No contributor activity.")}</section>
+    `<section class="page-grid"><section class="panel page-section"><h2>Top contributors</h2>${table(["Contributor", "Merged PRs", "Commits"], contributors, "No contributor activity.")}</section>
+    <section class="panel page-section"><h2>Top reviewers</h2>${table(["Reviewer", "PRs reviewed", "Merged PRs"], reviewers, "No reviews in this range.")}</section></section>
     <section class="panel page-section"><h2>Recent pull requests</h2>${pullRequestTable(data.recent_pull_requests)}</section>`
   );
 }
@@ -503,10 +515,19 @@ function userDetailPage(data) {
         ["Commits committed", "commits_committed"],
         ["Lines added · shared", "shared_additions"],
         ["Lines removed · shared", "shared_deletions"],
+        ["PRs reviewed", "reviews"],
       ],
       !historyLoaded && !historyFailed,
     ) +
-    `<section class="page-grid contributor-repository-pies">${contributionPie("Commits authored by repository", data.repository_activity || [], "commits")}${contributionPie("Pull requests opened by repository", data.repository_activity || [], "pull_requests_opened")}${providerPie}</section>` +
+    `<section class="page-grid contributor-repository-pies">${contributionPie("Commits authored by repository", data.repository_activity || [], "commits")}${contributionPie("Pull requests opened by repository", data.repository_activity || [], "pull_requests_opened")}${contributionPie(
+      "Pull requests reviewed by repository",
+      [...(data.repository_activity || [])].sort((a, b) => b.reviews - a.reviews),
+      "reviews",
+      {
+        subtitle:
+          "Each pull request counts once; reviews of this person’s own pull requests are not counted.",
+      },
+    )}${providerPie}</section>` +
     languagePanel(
       "Languages",
       data.languages,

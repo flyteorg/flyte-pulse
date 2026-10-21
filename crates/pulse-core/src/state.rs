@@ -20,6 +20,7 @@ pub struct State {
     pub pull_requests: Vec<PullRequest>,
     pub commits: Vec<Commit>,
     pub pull_request_commits: Vec<PullRequestCommit>,
+    pub pull_request_reviews: Vec<PullRequestReview>,
     pub watermarks: Vec<Watermark>,
     /// Commit email to GitHub account mappings. Emails are stored only as hashes.
     pub email_identities: Vec<EmailIdentity>,
@@ -170,6 +171,21 @@ pub struct PullRequestCommit {
     pub commit_sha: String,
 }
 
+/// A submitted pull request review (pending reviews are not collected).
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PullRequestReview {
+    pub repository_id: String,
+    pub pull_request_id: String,
+    /// GitHub's numeric review ID.
+    pub provider_id: String,
+    /// Empty when the reviewer's account no longer exists.
+    pub reviewer_contributor_id: String,
+    /// APPROVED, CHANGES_REQUESTED, COMMENTED, or DISMISSED
+    pub state: String,
+    pub submitted_at: Option<Ts>,
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Watermark {
@@ -179,6 +195,9 @@ pub struct Watermark {
     /// Start time of the last completed Git scan. `None` means the next sync
     /// makes a full clone instead of a shallow fetch.
     pub git_cursor: Option<Ts>,
+    /// Pull request fields collected for every saved pull request; when the collector
+    /// gathers more fields (1: reviews), the next sync rescans all pull requests once.
+    pub pr_fields_version: u32,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -215,6 +234,13 @@ impl State {
         self.commits.sort_by(|a, b| (&a.repository_id, &a.sha).cmp(&(&b.repository_id, &b.sha)));
         self.pull_request_commits.sort();
         self.pull_request_commits.dedup();
+        self.pull_request_reviews.sort_by(|a, b| {
+            (&a.repository_id, &a.pull_request_id, &a.provider_id).cmp(&(
+                &b.repository_id,
+                &b.pull_request_id,
+                &b.provider_id,
+            ))
+        });
         self.watermarks.sort_by(|a, b| a.repository_id.cmp(&b.repository_id));
         self.email_identities.sort_by(|a, b| a.email_hash.cmp(&b.email_hash));
     }

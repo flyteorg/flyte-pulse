@@ -108,7 +108,10 @@ impl View<'_> {
             if row.value != 0
                 && matches!(
                     row.kind,
-                    MetricKind::Commits | MetricKind::PullRequestsCreated | MetricKind::PullRequestsMerged
+                    MetricKind::Commits
+                        | MetricKind::PullRequestsCreated
+                        | MetricKind::PullRequestsMerged
+                        | MetricKind::Reviews
                 )
             {
                 repository_options.insert(row.repo);
@@ -180,6 +183,7 @@ impl View<'_> {
                     "commits": values.get(MetricKind::Commits),
                     "pull_requests_opened": values.get(MetricKind::PullRequestsCreated),
                     "pull_requests_merged": values.get(MetricKind::PullRequestsMerged),
+                    "reviews": values.get(MetricKind::Reviews),
                 }));
             }
         }
@@ -285,6 +289,7 @@ impl View<'_> {
                 "commits_committed": if include_history { json!(committed) } else { Value::Null },
                 "shared_additions": totals.get(MetricKind::SharedAdditions),
                 "shared_deletions": totals.get(MetricKind::SharedDeletions),
+                "reviews": totals.get(MetricKind::Reviews),
             },
             "daily": daily,
             "filters": {"days": days_value(days), "repository_id": repository_id.unwrap_or("")},

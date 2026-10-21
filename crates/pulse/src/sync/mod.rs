@@ -2,8 +2,8 @@
 //!
 //! Git supplies commit details, branch membership, and pull request commit lists
 //! (from `refs/pull/<N>/head`), so the GitHub API is only used for pull request
-//! metadata and for mapping commit emails to accounts. A repository without a Git
-//! cursor gets a full clone; later runs fetch shallowly from the cursor.
+//! metadata and reviews, and for mapping commit emails to accounts. A repository
+//! without a Git cursor gets a full clone; later runs fetch shallowly from the cursor.
 
 mod git;
 pub(crate) mod github;
@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
-use pulse_core::state::{Commit, EmailIdentity, PullRequest, PullRequestCommit, Repository, State};
+use pulse_core::state::{Commit, EmailIdentity, PullRequest, PullRequestCommit, PullRequestReview, Repository, State};
 use pulse_core::time::{Ts, format_timestamp, parse_timestamp};
 
 use crate::config::{Catalog, RepositorySpec, apply_identity_rules, bot_email, bot_name, load_catalog, mark_bot};
@@ -35,6 +35,10 @@ const EMAIL_RECHECK_SECONDS: i64 = 30 * DAY;
 /// Total time one sync may spend waiting for GitHub rate limits.
 const MAX_RATE_LIMIT_WAIT: Duration = Duration::from_secs(60 * 60);
 const PR_PAGE_SIZE: usize = 100;
+const MIN_PR_PAGE_SIZE: usize = 25;
+/// The pull request fields this collector reads (1: reviews). Repositories scanned
+/// with an older version get one full pull request rescan.
+const PR_FIELDS_VERSION: u32 = 1;
 const DEEPEN_STEPS: [&str; 3] = ["--deepen=500", "--deepen=2000", "--unshallow"];
 /// GitHub lists at most the 250 newest commits of a pull request. Keeping the same
 /// limit stops history-import pull requests (thousands of commits from other
@@ -81,6 +85,8 @@ struct RepoSummary {
     name: String,
     repository_id: String,
     mode: &'static str,
+    /// Every pull request was read again to collect newly tracked fields.
+    prs_rescanned: bool,
     prs_scanned: usize,
     commits_from_git: usize,
     prs_linked: usize,
@@ -93,6 +99,7 @@ struct RepoSummary {
     new_pull_requests: usize,
     merged_pull_requests: usize,
     new_commits: usize,
+    new_reviews: usize,
     seconds: u64,
     /// Accounts that authored commits from email addresses that say "bot".
     bot_email_authors: Vec<String>,
@@ -242,10 +249,12 @@ pub fn run(args: SyncArgs) -> Result<()> {
     eprintln!("\nSync summary ({} GitHub requests, {} GraphQL points):", github.requests, github.points);
     for s in &summaries {
         eprintln!(
-            "  {}: {} git, {} PRs scanned, {} commits from git, {} PRs linked ({} links, {} failures), {} new contributors, {} emails looked up, {} requests / {} points",
+            "  {}: {} git, {} PRs scanned{}, {} new reviews, {} commits from git, {} PRs linked ({} links, {} failures), {} new contributors, {} emails looked up, {} requests / {} points",
             s.name,
             s.mode,
             s.prs_scanned,
+            if s.prs_rescanned { " (full rescan)" } else { "" },
+            s.new_reviews,
             s.commits_from_git,
             s.prs_linked,
             s.link_rows,
@@ -263,10 +272,11 @@ pub fn run(args: SyncArgs) -> Result<()> {
         eprintln!("  {name}: skipped (rate-limit budget exhausted)");
     }
     eprintln!(
-        "State: {} repositories, {} contributors, {} pull requests, {} commits, {} links -> {}",
+        "State: {} repositories, {} contributors, {} pull requests, {} reviews, {} commits, {} links -> {}",
         state.repositories.len(),
         state.contributors.len(),
         state.pull_requests.len(),
+        state.pull_request_reviews.len(),
         state.commits.len(),
         state.pull_request_commits.len(),
         out.display()
@@ -349,7 +359,7 @@ fn curated_identities(config_dir: &Path) -> HashSet<String> {
         .collect()
 }
 
-/// New and newly merged pull requests and new commits for one repository.
+/// New and newly merged pull requests, new reviews, and new commits for one repository.
 fn count_changes(before: &State, after: &State, summary: &mut RepoSummary) {
     let id = summary.repository_id.as_str();
     let merged_before: HashMap<&str, bool> = before
@@ -367,6 +377,19 @@ fn count_changes(before: &State, after: &State, summary: &mut RepoSummary) {
             summary.merged_pull_requests += 1;
         }
     }
+    let reviews_before: HashSet<(&str, &str)> = before
+        .pull_request_reviews
+        .iter()
+        .filter(|r| r.repository_id == id)
+        .map(|r| (r.pull_request_id.as_str(), r.provider_id.as_str()))
+        .collect();
+    summary.new_reviews = after
+        .pull_request_reviews
+        .iter()
+        .filter(|r| {
+            r.repository_id == id && !reviews_before.contains(&(r.pull_request_id.as_str(), r.provider_id.as_str()))
+        })
+        .count();
     let commits_before: HashSet<&str> =
         before.commits.iter().filter(|c| c.repository_id == id).map(|c| c.sha.as_str()).collect();
     summary.new_commits =
@@ -387,8 +410,9 @@ fn sync_repository(state: &mut State, github: &mut GitHub, ctx: &RepoContext<'_>
     };
     let branch_changed = existing.as_ref().is_some_and(|row| row.target_branches != spec.target_branches);
     if ctx.reseed {
-        eprintln!("  reseed: discarding saved pull requests, commits, links, and cursors");
+        eprintln!("  reseed: discarding saved pull requests, reviews, commits, links, and cursors");
         state.pull_requests.retain(|r| r.repository_id != repository_id);
+        state.pull_request_reviews.retain(|r| r.repository_id != repository_id);
         state.commits.retain(|r| r.repository_id != repository_id);
         state.pull_request_commits.retain(|r| r.repository_id != repository_id);
         state.watermarks.retain(|w| w.repository_id != repository_id);
@@ -417,11 +441,14 @@ fn sync_repository(state: &mut State, github: &mut GitHub, ctx: &RepoContext<'_>
 
     let watermark = state.watermark(&repository_id).cloned().unwrap_or_default();
     let initial_prs = ctx.reseed || branch_changed || watermark.pr_cursor.is_none();
+    // Pull requests saved before a field was collected are read again once, without a new clone.
+    let rescan_prs = !initial_prs && watermark.pr_fields_version < PR_FIELDS_VERSION;
     let full_git = ctx.args.full_git || ctx.reseed || branch_changed || watermark.git_cursor.is_none();
     let mut summary = RepoSummary {
         name: spec.full_name(),
         repository_id: repository_id.clone(),
         mode: if full_git { "full" } else { "shallow" },
+        prs_rescanned: rescan_prs,
         ..RepoSummary::default()
     };
     let contributors_before = state.contributors.len();
@@ -429,12 +456,20 @@ fn sync_repository(state: &mut State, github: &mut GitHub, ctx: &RepoContext<'_>
     // Pull requests from GraphQL.
     let since = if initial_prs {
         (ctx.args.history_days > 0).then(|| ctx.started.0 - i64::from(ctx.args.history_days) * DAY)
+    } else if rescan_prs {
+        None
     } else {
         watermark.pr_cursor.map(|cursor| cursor.0 - PR_OVERLAP_SECONDS)
     };
     eprintln!(
-        "  pull requests: {} scan{}",
-        if initial_prs { "initial" } else { "incremental" },
+        "  pull requests: {}{}",
+        if initial_prs {
+            "initial scan"
+        } else if rescan_prs {
+            "rescan for newly collected fields"
+        } else {
+            "incremental scan"
+        },
         since.map(|s| format!(" since {}", format_timestamp(s))).unwrap_or_else(|| " of all history".into())
     );
     let scanned = scan_pull_requests(github, spec, since)?;
@@ -456,12 +491,20 @@ fn sync_repository(state: &mut State, github: &mut GitHub, ctx: &RepoContext<'_>
         .map(|l| l.pull_request_id.clone())
         .collect();
     let mut needs_links = BTreeSet::new();
+    // A rescan relinks only the pull requests an incremental scan would have read:
+    // older ones keep their saved links, which a shallow fetch cannot recompute.
+    let relink_since = if rescan_prs { watermark.pr_cursor.map(|cursor| cursor.0 - PR_OVERLAP_SECONDS) } else { None };
+    // Each scanned pull request's reviews replace the saved ones.
+    let scanned_ids: HashSet<String> = scanned.iter().map(PullRequestNode::provider_id).collect();
+    state
+        .pull_request_reviews
+        .retain(|r| !(r.repository_id == repository_id && scanned_ids.contains(&r.pull_request_id)));
     for node in &scanned {
         let provider_id = node.provider_id();
         if provider_id.is_empty() {
             continue;
         }
-        let author_id = match node.author_account() {
+        let mut contributor_id = |account: Option<Account>| match account {
             Some(account) => {
                 let row = account.to_contributor(ctx.started, &ctx.catalog.identity_rules);
                 let id = row.id.clone();
@@ -470,10 +513,24 @@ fn sync_repository(state: &mut State, github: &mut GitHub, ctx: &RepoContext<'_>
             }
             None => String::new(),
         };
+        let author_id = contributor_id(node.author_account());
+        let reviews: Vec<PullRequestReview> = node
+            .reviews()
+            .map(|review| PullRequestReview {
+                repository_id: repository_id.clone(),
+                pull_request_id: provider_id.clone(),
+                provider_id: review.provider_id(),
+                reviewer_contributor_id: contributor_id(review.author.as_ref().and_then(|a| a.account())),
+                state: review.state.clone(),
+                submitted_at: review.submitted_at.as_deref().and_then(parse_timestamp).map(Ts),
+            })
+            .collect();
+        state.pull_request_reviews.extend(reviews);
         let row = pull_request_row(node, &repository_id, author_id, ctx.started);
+        let relink = relink_since.is_none_or(|since| row.updated_at.is_some_and(|at| at.0 >= since));
         match pr_index.get(&provider_id) {
             Some(&index) => {
-                if state.pull_requests[index].head_sha != row.head_sha || !linked.contains(&provider_id) {
+                if relink && (state.pull_requests[index].head_sha != row.head_sha || !linked.contains(&provider_id)) {
                     needs_links.insert(provider_id.clone());
                 }
                 state.pull_requests[index] = row;
@@ -584,6 +641,7 @@ fn sync_repository(state: &mut State, github: &mut GitHub, ctx: &RepoContext<'_>
     let watermark = state.watermark_mut(&repository_id);
     watermark.pr_cursor = Some(ctx.started);
     watermark.git_cursor = Some(ctx.started);
+    watermark.pr_fields_version = PR_FIELDS_VERSION;
     summary.new_contributors = state.contributors.len() - contributors_before;
     summary.api_requests = github.requests - requests_before;
     summary.api_points = github.points - points_before;
@@ -596,10 +654,13 @@ fn scan_pull_requests(github: &mut GitHub, spec: &RepositorySpec, since: Option<
     for branch in &spec.target_branches {
         let (mut after, mut page_size, mut pages, before) = (None::<String>, PR_PAGE_SIZE, 0, found.len());
         loop {
+            let server_errors = github.server_errors;
             let page =
                 match github.pull_request_page(&spec.owner, &spec.name, &branch.name, after.as_deref(), page_size) {
                     Ok(page) => page,
-                    Err(error) if page_size > 25 && error.downcast_ref::<WaitBudgetExhausted>().is_none() => {
+                    Err(error)
+                        if page_size > MIN_PR_PAGE_SIZE && error.downcast_ref::<WaitBudgetExhausted>().is_none() =>
+                    {
                         page_size /= 2;
                         eprintln!("  pull requests: page failed ({error:#}); retrying with {page_size} per page");
                         continue;
@@ -607,8 +668,14 @@ fn scan_pull_requests(github: &mut GitHub, spec: &RepositorySpec, since: Option<
                     Err(error) => return Err(error),
                 };
             pages += 1;
+            // GitHub answers pages that take too long with server errors, and repeating
+            // such queries leads to secondary rate limits, so later pages get smaller.
+            if github.server_errors > server_errors && page_size > MIN_PR_PAGE_SIZE {
+                page_size /= 2;
+                eprintln!("  pull requests: slow page; continuing with {page_size} per page");
+            }
             let mut reached_older = false;
-            for node in page.nodes.into_iter().flatten() {
+            for mut node in page.nodes.into_iter().flatten() {
                 let updated = node.updated_at.as_deref().and_then(parse_timestamp);
                 if let (Some(since), Some(updated)) = (since, updated)
                     && updated < since
@@ -617,6 +684,7 @@ fn scan_pull_requests(github: &mut GitHub, spec: &RepositorySpec, since: Option<
                     continue;
                 }
                 if seen.insert(node.provider_id()) {
+                    read_all_reviews(github, spec, &mut node)?;
                     found.push(node);
                 }
             }
@@ -631,6 +699,18 @@ fn scan_pull_requests(github: &mut GitHub, spec: &RepositorySpec, since: Option<
         eprintln!("  pull requests: {} updated on {} ({pages} pages)", found.len() - before, branch.name);
     }
     Ok(found)
+}
+
+/// Page through the rest of a pull request's reviews when the pull request query
+/// returned only the first ones.
+fn read_all_reviews(github: &mut GitHub, spec: &RepositorySpec, node: &mut PullRequestNode) -> Result<()> {
+    while let Some(after) = node.more_reviews().map(str::to_string) {
+        let page = github.review_page(&spec.owner, &spec.name, node.number, &after)?;
+        let reviews = node.reviews.as_mut().expect("more reviews imply a review list");
+        reviews.nodes.extend(page.nodes);
+        reviews.page_info = page.page_info;
+    }
+    Ok(())
 }
 
 fn pull_request_row(node: &PullRequestNode, repository_id: &str, author_id: String, observed_at: Ts) -> PullRequest {

@@ -221,8 +221,9 @@
             ><div class="contributor-toggle" role="group" aria-label="Contributor list"
               ><button type="button" data-contributor-kind="HUMAN" aria-pressed="true">Human</button
               ><button type="button" data-contributor-kind="NEW" aria-pressed="false">New</button
-              ><button type="button" data-contributor-kind="AI" aria-pressed="false"
-                >AI</button
+              ><button type="button" data-contributor-kind="AI" aria-pressed="false">AI</button
+              ><button type="button" data-contributor-kind="REVIEWERS" aria-pressed="false"
+                >Reviewers</button
               ></div
             ></div
           >
@@ -301,6 +302,8 @@
                   >Merged PRs</button
                 ><button type="button" data-company-pie-metric="commits" aria-pressed="false"
                   >Commits</button
+                ><button type="button" data-company-pie-metric="reviews" aria-pressed="false"
+                  >Reviews</button
                 ></div
               >
             </div>
@@ -351,6 +354,7 @@
           ></section
         >
       </section>
+      <div id="reviews-content"></div>
       <div id="languages-content"></div>
     </template>
   </body>

@@ -35,6 +35,7 @@ function renderRepositoryCompanyShare(region, data) {
   const controls = `<div class="contributor-toggle" role="group" aria-label="Company contribution metric">${[
     ["pull_requests_merged", "Merged PRs"],
     ["commits", "Commits"],
+    ["reviews", "Reviews"],
   ]
     .map(
       ([metric, label]) =>
@@ -146,6 +147,7 @@ const companyDirectoryColumns = [
   ["pull_requests_merged", "Merged PRs"],
   ["shared_additions", "Added · shared"],
   ["shared_deletions", "Removed · shared"],
+  ["reviews", "PRs reviewed"],
 ];
 const companyProfileColumns = [
   ["name", "Contributor"],
@@ -201,6 +203,7 @@ function companyDirectoryTable(companies, query, sort) {
     <td class="count">${number.format(company.pull_requests_merged || 0)}</td>
     <td class="count">${number.format(company.shared_additions || 0)}</td>
     <td class="count">${number.format(company.shared_deletions || 0)}</td>
+    <td class="count">${number.format(company.reviews || 0)}</td>
   </tr>`,
   );
   return companySortableTable(
@@ -287,6 +290,7 @@ export function companyDetailPage(data) {
       ["Merged PRs", "pull_requests_merged"],
       ["Lines added · shared", "shared_additions"],
       ["Lines removed · shared", "shared_deletions"],
+      ["PRs reviewed", "reviews"],
     ]) +
     (data.daily.length
       ? activityPanel(data.daily) +

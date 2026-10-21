@@ -359,7 +359,7 @@ pub(crate) fn day_of(timestamp: Option<i64>) -> Option<i32> {
 
 /// Per-metric sums indexed by [`MetricKind`].
 #[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct Totals([i64; 7]);
+pub(crate) struct Totals([i64; 8]);
 
 impl Totals {
     pub fn add(&mut self, kind: MetricKind, value: i64) {

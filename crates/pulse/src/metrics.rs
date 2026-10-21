@@ -6,7 +6,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use pulse_core::snapshot::{CompanyMetricKind, MetricKind};
-use pulse_core::state::{Commit, Contributor, PullRequest, State};
+use pulse_core::state::{Commit, Contributor, PullRequest, PullRequestReview, State};
 use pulse_core::time::{Ts, format_date};
 
 use crate::attribution::{
@@ -29,6 +29,7 @@ pub struct Facts<'a> {
     pub branches_by_commit: HashMap<(&'a str, &'a str), BTreeSet<&'a str>>,
     /// Commits linked to at least one tracked pull request.
     pub linked_commits: HashSet<(&'a str, &'a str)>,
+    pub reviews_by_pull_request: HashMap<(&'a str, &'a str), Vec<&'a PullRequestReview>>,
 }
 
 impl<'a> Facts<'a> {
@@ -56,6 +57,13 @@ impl<'a> Facts<'a> {
                 branches_by_commit.entry(commit_key).or_default().insert(pr.target_branch.as_str());
             }
         }
+        let mut reviews_by_pull_request: HashMap<_, Vec<&PullRequestReview>> = HashMap::new();
+        for review in &state.pull_request_reviews {
+            reviews_by_pull_request
+                .entry((review.repository_id.as_str(), review.pull_request_id.as_str()))
+                .or_default()
+                .push(review);
+        }
         Self {
             state,
             contributors,
@@ -66,6 +74,7 @@ impl<'a> Facts<'a> {
             commits_by_pull_request,
             branches_by_commit,
             linked_commits,
+            reviews_by_pull_request,
         }
     }
 
@@ -82,6 +91,25 @@ impl<'a> Facts<'a> {
     pub fn label(&self, contributor_id: &str) -> Option<&'a str> {
         let c = self.contributors.get(contributor_id)?;
         [c.display_name.as_str(), c.login.as_str()].into_iter().find(|v| !v.is_empty())
+    }
+
+    /// When each counted reviewer first reviewed a pull request. Reviews by the
+    /// author and by bots and AI accounts do not count.
+    pub fn reviewers(&self, pr: &PullRequest) -> BTreeMap<&'a str, Ts> {
+        let mut first: BTreeMap<&'a str, Ts> = BTreeMap::new();
+        let key = (pr.repository_id.as_str(), pr.provider_id.as_str());
+        for review in self.reviews_by_pull_request.get(&key).into_iter().flatten() {
+            let reviewer = review.reviewer_contributor_id.as_str();
+            let Some(at) = review.submitted_at else { continue };
+            if reviewer.is_empty()
+                || reviewer == pr.author_contributor_id
+                || matches!(self.kind(reviewer).as_str(), "BOT" | "AI")
+            {
+                continue;
+            }
+            first.entry(reviewer).and_modify(|t| *t = (*t).min(at)).or_insert(at);
+        }
+        first
     }
 
     pub fn counted_commits(&self) -> impl Iterator<Item = &'a Commit> + '_ {
@@ -125,6 +153,9 @@ pub fn build_daily_metrics(facts: &Facts) -> BTreeMap<MetricKey, i64> {
                 both(pr.merged_at, &participant, MetricKind::SharedDeletions, pr.deletions);
             }
             both(pr.merged_at, author, MetricKind::Deletions, pr.deletions);
+        }
+        for (reviewer, at) in facts.reviewers(pr) {
+            both(Some(at), reviewer, MetricKind::Reviews, 1);
         }
     }
     for commit in facts.counted_commits() {
@@ -283,6 +314,10 @@ pub fn build_company_metrics(facts: &Facts, catalog: &CompanyCatalog) -> Company
                 (CompanyMetricKind::SharedDeletions, pr.deletions),
             ],
         );
+        for (reviewer, at) in facts.reviewers(pr) {
+            let ids = BTreeSet::from([reviewer.to_string()]);
+            emit(repo, Some(at), &ids, &branches, &[(CompanyMetricKind::Reviews, 1)]);
+        }
     }
     result
 }
