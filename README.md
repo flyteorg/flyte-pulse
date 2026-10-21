@@ -30,6 +30,7 @@ GitHub Actions (daily)                          GitHub Pages
 | `web/` | Single-page site: `index.html`, hash-routed JS views, CSS. Pages share the components in `web/js/components` (sortable tables, charts, filters). |
 | `config/` | Reviewed catalogs: `repositories.yaml`, `companies.yaml`, `affiliations.yaml`. |
 | `scripts/build-site.sh` | Builds the site into `dist/`: WebAssembly, web assets, and the data snapshot. |
+| `scripts/serve-local.sh` | Fetches the data branch's state, builds the site, and serves it locally. |
 
 ## How the data is collected
 
@@ -123,6 +124,9 @@ GITHUB_TOKEN=$(gh auth token) ./target/release/pulse sync --state state
 # Build the site into dist/ and serve it
 scripts/build-site.sh state dist
 python3 -m http.server -d dist 8000   # http://localhost:8000
+
+# Or in one step, from the latest published state on the data branch
+scripts/serve-local.sh [PORT]   # http://127.0.0.1:8000; STATE=path builds from a local state
 ```
 
 `rust-toolchain.toml` is the only place the Rust version is set; rustup installs
