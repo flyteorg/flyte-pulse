@@ -2,6 +2,7 @@
 # `data` branch and the `pulse-state` release, rebuild and deploy the site, and
 # propose company and affiliation updates in a pull request.
 # Pushes to main rebuild and deploy the site from the saved state without syncing.
+# A run that finds no saved state collects every repository from scratch.
 name: Sync and deploy
 
 on:
@@ -77,8 +78,9 @@ jobs:
           elif gh release download "$STATE_RELEASE" --pattern pulse-state.json.gz --dir . 2>/dev/null; then
             echo "STATE=pulse-state.json.gz" >> "$GITHUB_ENV"
           else
-            echo "::error::No saved state on the $DATA_BRANCH branch or the $STATE_RELEASE release; create it with a local sync first (see DEVELOPMENT.md)."
-            exit 1
+            echo "::notice::No saved state on the $DATA_BRANCH branch or the $STATE_RELEASE release; collecting every repository from scratch."
+            echo "STATE=" >> "$GITHUB_ENV"
+            echo "FIRST_SYNC=true" >> "$GITHUB_ENV"
           fi
 
       # Installs the toolchain and targets from rust-toolchain.toml and caches builds.
@@ -111,7 +113,7 @@ jobs:
         run: cargo build --release -p pulse
 
       - name: Sync
-        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.sync)
+        if: env.FIRST_SYNC == 'true' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.sync)
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # Optional personal access token with a higher rate limit, for reseeds.
@@ -120,7 +122,8 @@ jobs:
           HISTORY_DAYS: ${{ inputs.history_days || '0' }}
           FULL_GIT: ${{ inputs.full_git }}
         run: |
-          args=(--state "$STATE" --out data-branch/state --config-dir config --history-days "$HISTORY_DAYS"
+          # Without a saved state, the sync starts empty and makes a full clone of every repository.
+          args=(--state "${STATE:-data-branch/state}" --out data-branch/state --config-dir config --history-days "$HISTORY_DAYS"
             --summary-file "$GITHUB_STEP_SUMMARY")
           for repository in $RESEED; do args+=(--reseed "$repository"); done
           if [ "$FULL_GIT" = "true" ]; then args+=(--full-git); fi

@@ -146,15 +146,16 @@ python3 -m http.server -d dist 8000
 
 ### Starting from nothing
 
-The workflow refuses to run without a saved state, so the first state is created
-locally: `pulse sync` with a missing `--state` path starts empty and collects every
-active repository's full history (a full clone plus all of its pull requests). Push
-the resulting `state/` directory to the orphan `data` branch; from then on the daily
-sync is incremental.
+A sync with a missing `--state` path starts empty and collects every active
+repository's full history (a full clone plus all of its pull requests). The workflow
+does the same when it finds no saved state, on any trigger, and creates the `data`
+branch and the release asset from the result; from then on the daily sync is
+incremental.
 
 ## GitHub setup
 
-1. Push `main` and the `data` branch.
+1. Push `main`. The first workflow run collects everything and creates the `data`
+   branch.
 2. Settings → Pages → Source: **GitHub Actions**.
 3. Optional: add a `PULSE_GITHUB_TOKEN` secret (a fine-grained token with public
    read access) for a higher rate limit; the workflow's `GITHUB_TOKEN` is enough
