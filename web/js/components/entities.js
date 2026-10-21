@@ -74,6 +74,7 @@ export function aiModelColumns() {
   return [
     providerColumn("provider_key"),
     column.text("model", "Model"),
+    column.count("commits_with_ai", "Commits with AI"),
     column.count("commits_ai_authored", "AI-authored commits"),
     column.count("commits_ai_coauthored", "AI co-authored commits"),
     column.count("commits_ai_assisted", "AI-assisted commits"),

@@ -772,6 +772,7 @@ companies:
   - '@flyteorg'
   domains:
   - union.ai
+  maintainer: true
 - id: university-of-washington
   canonical_name: University of Washington
   website_url: https://www.washington.edu/

@@ -499,6 +499,70 @@ a {
   margin-top: 2px;
 }
 
+/* Leaders stand apart from the totals above them: a warm tint, border, and glow. */
+.highlight-card {
+  border-color: color-mix(in srgb, var(--highlight) 38%, var(--border-subtle));
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--highlight) 9%, var(--surface)),
+    var(--surface) 65%
+  );
+}
+
+.highlight-card::after {
+  background: var(--highlight);
+  opacity: 0.14;
+}
+
+.highlight-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.highlight-icon {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--highlight);
+}
+
+.highlight-subject {
+  margin-top: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--heading);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.highlight-subject .user-alias {
+  display: block;
+  margin: 2px 0 0;
+}
+
+.highlight-value {
+  margin-top: 8px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.link-button {
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: 500 12px var(--font);
+  cursor: pointer;
+}
+
+.link-button:hover,
+.link-button:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .summary-link {
   color: inherit;
   text-decoration: none;
@@ -695,10 +759,12 @@ td small .user-alias {
   overscroll-behavior-inline: contain;
 }
 
+/* Separate borders keep sticky headers opaque while rows scroll beneath them. */
 table {
   width: 100%;
   min-width: max-content;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   text-align: left;
   white-space: nowrap;
 }
@@ -859,6 +925,26 @@ tbody tr:hover td {
 
 .overview-grid .contributors-panel {
   grid-area: contributors;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The list fills the panel down to the bottom of the charts beside it and scrolls;
+   `contain: size` keeps its rows from making the grid taller. */
+.contributors-results {
+  flex: 1 1 0;
+  min-height: 320px;
+  contain: size;
+}
+
+.contributors-results > .data-table,
+.contributors-results > .data-table > .table-wrap {
+  height: 100%;
+}
+
+.contributors-results .table-scroll {
+  max-height: none;
 }
 
 .overview-shares {
@@ -1216,6 +1302,15 @@ tbody tr:hover td {
   }
   .overview-grid {
     grid-template-areas: "activity" "contributors" "shares";
+  }
+  /* Stacked, the list has no neighbor to match; it scrolls after about ten rows. */
+  .contributors-results {
+    flex: none;
+    min-height: 0;
+    contain: none;
+  }
+  .contributors-results .table-scroll {
+    max-height: calc(38px + 10 * 62px);
   }
   .site-footer-inner {
     grid-template-columns: repeat(3, minmax(0, 1fr));

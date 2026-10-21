@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::state::{Language, TargetBranch};
 
-pub const MAGIC: &[u8; 8] = b"PULSE\x00\x00\x03";
+pub const MAGIC: &[u8; 8] = b"PULSE\x00\x00\x04";
 pub const NONE: u32 = u32::MAX;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -80,6 +80,9 @@ pub struct Person {
     pub affiliation: Affiliation,
     /// Curated dated periods.
     pub affiliations: Vec<Affiliation>,
+    /// Day ranges (`[start, end)`) at a maintainer company; activity on other days is
+    /// community activity.
+    pub maintainer_days: Vec<(i32, i32)>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -104,6 +107,7 @@ pub struct Company {
     pub canonical_name: String,
     pub aliases: Vec<String>,
     pub website_url: String,
+    pub maintainer: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]

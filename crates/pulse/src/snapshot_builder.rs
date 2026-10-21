@@ -232,6 +232,7 @@ pub fn build_snapshot(state: &State, companies: &CompanyCatalog, generated_at: i
             is_bot: c.is_bot,
             affiliation: companies.current_affiliation(c, &today),
             affiliations: companies.periods.get(&c.id).cloned().unwrap_or_default(),
+            maintainer_days: companies.maintainer_days(&c.id),
         })
         .collect();
 
@@ -355,6 +356,7 @@ pub fn build_snapshot(state: &State, companies: &CompanyCatalog, generated_at: i
                 canonical_name: c.canonical_name.clone(),
                 aliases: c.aliases.clone(),
                 website_url: c.website_url.clone(),
+                maintainer: c.maintainer,
             })
             .collect(),
         metrics,

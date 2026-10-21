@@ -212,6 +212,7 @@ impl View<'_> {
         let mut totals = Totals::default();
         let mut daily: HashMap<i32, Totals> = HashMap::new();
         let mut contributor_totals: Ordered<u32, Totals> = Ordered::new();
+        let mut community_totals: Ordered<u32, Totals> = Ordered::new();
         let mut reviewer_totals: Ordered<u32, i64> = Ordered::new();
         let mut repository_totals: Ordered<u32, Totals> = Ordered::new();
         let mut branch_totals: HashMap<(u32, u32), Totals> = HashMap::new();
@@ -243,6 +244,9 @@ impl View<'_> {
             // for the AI views; they are not contributors.
             if data.person(row.key).is_some() {
                 contributor_totals.entry(row.key).add(row.kind, row.value);
+                if data.is_community(row.key, row.date) {
+                    community_totals.entry(row.key).add(row.kind, row.value);
+                }
             }
             repository_totals.entry(row.repo).add(row.kind, row.value);
         }
@@ -258,15 +262,21 @@ impl View<'_> {
             })
             .collect();
 
-        let mut top: Vec<(u32, Value)> = contributor_totals
-            .entries
-            .iter()
-            .map(|(key, values)| (*key, contributor_row(self, *key, values)))
-            .collect();
-        top.sort_by(|(_, a), (_, b)| {
-            let score = |v: &Value| int(v, "pull_requests_merged") + int(v, "commits") + int(v, "pull_requests_opened");
-            (score(b), fold(&text(b, "name"))).cmp(&(score(a), fold(&text(a, "name"))))
-        });
+        let ranked = |totals: &Ordered<u32, Totals>| {
+            let mut rows: Vec<(u32, Value)> =
+                totals.entries.iter().map(|(key, values)| (*key, contributor_row(self, *key, values))).collect();
+            rows.sort_by(|(_, a), (_, b)| {
+                let score =
+                    |v: &Value| int(v, "pull_requests_merged") + int(v, "commits") + int(v, "pull_requests_opened");
+                (score(b), fold(&text(b, "name"))).cmp(&(score(a), fold(&text(a, "name"))))
+            });
+            rows
+        };
+        let top = ranked(&contributor_totals);
+        // Community activity is what humans did while not at a maintainer company.
+        let community_top: Vec<Value> = ranked(&community_totals).into_iter().map(|(_, v)| v).collect();
+        let maintainers: Vec<&str> =
+            data.snapshot.companies.iter().filter(|c| c.maintainer).map(|c| c.canonical_name.as_str()).collect();
         let human_top: Vec<(u32, Value)> = top.iter().filter(|(key, _)| data.is_human(*key)).cloned().collect();
         let active_human = contributor_totals.entries.iter().filter(|(key, _)| data.is_human(*key)).count();
 
@@ -384,6 +394,8 @@ impl View<'_> {
             "top_contributors": top.iter().take(12).map(|(_, v)| v.clone()).collect::<Vec<_>>(),
             "human_top_contributors": human_top.into_iter().map(|(_, v)| v).collect::<Vec<_>>(),
             "new_top_contributors": new_top.into_iter().map(|(_, v)| v).collect::<Vec<_>>(),
+            "community_top_contributors": community_top,
+            "maintainer_companies": maintainers,
             "top_reviewers": reviewers,
             "ai_top_contributors": [],
             "repository_activity": repository_activity,

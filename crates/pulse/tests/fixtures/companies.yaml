@@ -4,3 +4,4 @@ companies:
   website_url: https://union.ai
   aliases:
   - '@unionai'
+  maintainer: true

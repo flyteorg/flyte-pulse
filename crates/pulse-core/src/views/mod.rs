@@ -134,6 +134,14 @@ impl Dataset {
         self.kind(key).eq_ignore_ascii_case("HUMAN")
     }
 
+    /// A human outside the maintainer companies on `date`.
+    pub fn is_community(&self, key: u32, date: i32) -> bool {
+        self.is_human(key)
+            && self
+                .person(key)
+                .is_some_and(|p| !p.maintainer_days.iter().any(|&(start, end)| start <= date && date < end))
+    }
+
     pub fn branch(&self, index: u32) -> &str {
         self.snapshot.branches.get(index as usize).map_or("", String::as_str)
     }
