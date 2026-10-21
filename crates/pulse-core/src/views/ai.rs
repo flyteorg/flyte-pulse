@@ -48,6 +48,8 @@ pub(super) struct Identity {
     pub name: String,
     pub provider: String,
     pub model: String,
+    /// Exact versions seen under this key, such as `4.5` and `4.6`.
+    pub versions: BTreeSet<String>,
     pub commits: HashSet<u32>,
     /// Commits per [`AiRole`].
     pub categories: [HashSet<u32>; 3],
@@ -57,12 +59,16 @@ pub(super) struct Identity {
 }
 
 impl Identity {
-    /// Take the name, provider, and model from the first identity seen for the key.
+    /// Take the name, provider, and model from the first identity seen for the key,
+    /// and record the exact version this one names.
     pub fn describe(&mut self, model: &AiIdentity) {
         if self.name.is_empty() && self.provider.is_empty() {
             self.name = model.name.clone();
             self.provider = model.provider.clone();
             self.model = model.model.clone();
+        }
+        if !model.version.is_empty() {
+            self.versions.insert(model.version.clone());
         }
     }
 
@@ -361,6 +367,7 @@ impl View<'_> {
                 "name": identity.name,
                 "provider": identity.provider,
                 "model": identity.model,
+                "versions": identity.versions,
                 "commits_with_ai": identity.commits.len(),
                 "commits_ai_authored": identity.categories[AiRole::Author.index()].len(),
                 "commits_ai_coauthored": identity.categories[AiRole::CoAuthor.index()].len(),
