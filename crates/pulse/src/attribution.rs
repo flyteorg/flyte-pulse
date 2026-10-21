@@ -8,10 +8,10 @@ use pulse_core::state::Contributor;
 use regex::Regex;
 
 pub use pulse_core::AI_NAME_ALIASES;
+pub use pulse_core::views::normalized_ai_name;
 
 static AI_TRAILER: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?im)^\s*(Co-Authored-By|Assisted-By)\s*:\s*(.*?)\s*$").expect("valid regex"));
-static NON_ALNUM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[^a-z0-9]+").unwrap());
 static SPACES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+").unwrap());
 static PERSON: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(.*?)\s*<([^<>]+)>\s*$").unwrap());
 static EMAIL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b").unwrap());
@@ -75,11 +75,6 @@ static PROVIDERS: LazyLock<Vec<Provider>> = LazyLock::new(|| {
     })
     .collect()
 });
-
-pub fn normalized_ai_name(value: &str) -> String {
-    let lowered = value.to_lowercase();
-    SPACES.replace_all(&NON_ALNUM.replace_all(&lowered, " "), " ").trim().to_string()
-}
 
 fn strip_separators(value: &str) -> &str {
     value.trim_matches(|c| matches!(c, ' ' | '-' | '_' | ':'))
@@ -179,6 +174,34 @@ pub fn trailer_identity_candidates(value: &str) -> Vec<String> {
         candidates.push(local);
     }
     candidates
+}
+
+/// A Co-Authored-By / Assisted-By trailer resolved against the known contributors.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ResolvedTrailer {
+    pub role: TrailerRole,
+    /// The display name in the trailer, never the address.
+    pub person: String,
+    /// The contributor ID the trailer resolves to, or empty.
+    pub resolved: String,
+    /// The name is a recognized AI tool.
+    pub is_ai: bool,
+}
+
+/// Parse and resolve every trailer of a commit message once, for all consumers.
+pub fn resolve_trailers(
+    message: &str,
+    aliases: &HashMap<String, HashSet<String>>,
+    known_ai_names: &HashSet<String>,
+) -> Vec<ResolvedTrailer> {
+    trailers(message)
+        .into_iter()
+        .map(|(role, raw)| {
+            let person = trailer_person(&raw);
+            let is_ai = is_ai_name(&person, known_ai_names);
+            ResolvedTrailer { role, resolved: resolve_trailer_contributor(&raw, aliases), person, is_ai }
+        })
+        .collect()
 }
 
 /// `(role, raw person)` pairs for each Co-Authored-By / Assisted-By trailer.
@@ -315,6 +338,5 @@ mod tests {
         assert!(is_ai_name("GitHub Copilot", &known));
         assert!(is_ai_name("Helper-Bot", &known));
         assert!(!is_ai_name("Jane Doe", &known));
-        assert_eq!(normalized_ai_name("  Claude_Code!! "), "claude code");
     }
 }

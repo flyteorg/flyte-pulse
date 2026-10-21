@@ -16,7 +16,7 @@ use serde::Deserialize;
 
 pub use edit::apply;
 
-use crate::companies::{CompanyCatalog, load_company_catalog, normalize_company};
+use crate::companies::{CompanyCatalog, load_company_catalog, normalize_company, url_host};
 use crate::config::{apply_identity_rules, bot_name, load_catalog};
 use crate::report::{append, thousands, today};
 use crate::state_io::read_state;
@@ -446,9 +446,32 @@ fn domain_stem(domain: &str) -> Option<String> {
     Some(labels[index].to_string())
 }
 
-fn url_host(url: &str) -> String {
-    let rest = url.trim().trim_start_matches("https://").trim_start_matches("http://");
-    rest.split(['/', '?', '#']).next().unwrap_or_default().trim_start_matches("www.").to_lowercase()
+/// The company whose name or alias is the organization's name or login.
+fn known_company(catalog: &CompanyCatalog, org: &Organization) -> Option<String> {
+    [&org.name, &org.login].into_iter().find_map(|value| catalog.aliases.get(&normalize_company(value)).cloned())
+}
+
+/// A company proposed from a GitHub organization, with a fresh ID.
+fn new_company(
+    org: &Organization,
+    website_url: String,
+    domains: Vec<String>,
+    logins: Vec<String>,
+    evidence: String,
+    taken: &mut HashSet<String>,
+) -> NewCompany {
+    let id = company_id(&org.login, taken);
+    taken.insert(id.clone());
+    let name = org.name.trim();
+    NewCompany {
+        id,
+        canonical_name: if name.is_empty() { org.login.clone() } else { name.to_string() },
+        website_url,
+        alias: format!("@{}", org.login),
+        domains,
+        logins,
+        evidence,
+    }
 }
 
 /// The single organization handle in a profile company field, ignoring listed
@@ -583,29 +606,14 @@ pub fn discover(
                     github_link(&org.login),
                     url_host(&org.website_url)
                 );
-                let existing = [&org.name, &org.login]
-                    .into_iter()
-                    .find_map(|value| catalog.aliases.get(&normalize_company(value)).cloned());
-                if let Some(company) = existing {
+                if let Some(company) = known_company(catalog, &org) {
                     domain_proposals.insert(domain.to_string(), company.clone());
                     discovery.domains.push(DomainMapping { company_id: company, domain: domain.to_string(), evidence });
                 } else if let Some(website_url) = https_website(&org.website_url) {
-                    let id = company_id(&org.login, &taken);
-                    taken.insert(id.clone());
-                    domain_proposals.insert(domain.to_string(), id.clone());
-                    discovery.companies.push(NewCompany {
-                        id,
-                        canonical_name: if org.name.trim().is_empty() {
-                            org.login.clone()
-                        } else {
-                            org.name.trim().into()
-                        },
-                        website_url,
-                        alias: format!("@{}", org.login),
-                        domains: vec![domain.to_string()],
-                        logins: Vec::new(),
-                        evidence,
-                    });
+                    let company =
+                        new_company(&org, website_url, vec![domain.to_string()], Vec::new(), evidence, &mut taken);
+                    domain_proposals.insert(domain.to_string(), company.id.clone());
+                    discovery.companies.push(company);
                 }
             }
             None => discovery.review.push(ReviewItem {
@@ -639,12 +647,7 @@ pub fn discover(
             .or_else(|| organizations.iter().find(|(key, _)| key.eq_ignore_ascii_case(&login)).map(|(_, value)| value));
         let Some(organization) = organization else { continue };
         // An organization of a known company: add its handle as an alias.
-        let existing = organization.as_ref().and_then(|org| {
-            [&org.name, &org.login]
-                .into_iter()
-                .find_map(|value| catalog.aliases.get(&normalize_company(value)))
-                .map(|id| (org, id.clone()))
-        });
+        let existing = organization.as_ref().and_then(|org| known_company(catalog, org).map(|id| (org, id)));
         if let Some((org, id)) = existing {
             new_orgs.insert(login.clone(), id.clone());
             discovery.aliases.push(AliasMapping { company_id: id, alias: format!("@{}", org.login), logins: users });
@@ -666,18 +669,10 @@ pub fn discover(
         }
         match organization.as_ref().and_then(|o| https_website(&o.website_url).map(|url| (o, url))) {
             Some((org, website_url)) => {
-                let id = company_id(&org.login, &taken);
-                taken.insert(id.clone());
-                new_orgs.insert(login.clone(), id.clone());
-                discovery.companies.push(NewCompany {
-                    id,
-                    canonical_name: if org.name.trim().is_empty() { org.login.clone() } else { org.name.trim().into() },
-                    website_url,
-                    alias: format!("@{}", org.login),
-                    domains: Vec::new(),
-                    logins: users,
-                    evidence: format!("GitHub organization {}", github_link(&org.login)),
-                });
+                let evidence = format!("GitHub organization {}", github_link(&org.login));
+                let company = new_company(org, website_url, Vec::new(), users, evidence, &mut taken);
+                new_orgs.insert(login.clone(), company.id.clone());
+                discovery.companies.push(company);
             }
             None => discovery.review.push(ReviewItem {
                 kind: "Unknown organization",

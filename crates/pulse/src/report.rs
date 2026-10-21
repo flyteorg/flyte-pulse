@@ -145,9 +145,14 @@ pub fn snapshot_markdown(data_dir: &Path, today: i32) -> Result<String> {
     Ok(out)
 }
 
+/// The current time as Unix seconds.
+pub fn now_seconds() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64)
+}
+
+/// Today's UTC date as days since 1970-01-01.
 pub fn today() -> i32 {
-    let seconds = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
-    day_of(seconds as i64)
+    day_of(now_seconds())
 }
 
 #[cfg(test)]

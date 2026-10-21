@@ -6,18 +6,16 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use serde_json::{Value, json};
 
 use super::activity::sort_by_score;
+use super::ai::Identity;
 use super::company::profile_affiliations;
 use super::languages::language_rows;
-use super::{Ordered, Totals, View, date_str, day_of, days_value, fold, in_range, iso};
-use crate::snapshot::{MetricKind, NONE};
+use super::{Ordered, Totals, View, day_of, days_value, fold, in_range};
+use crate::snapshot::{AiRole, MetricKind, NONE};
+use crate::time::format_date;
 
 impl View<'_> {
     pub(crate) fn contributor_index(&self) -> Value {
-        let data = self.data;
-        let mut repositories: Vec<Value> =
-            data.snapshot.repositories.iter().map(|r| json!({"id": r.id, "name": r.full_name()})).collect();
-        repositories.sort_by_key(|r| fold(r["name"].as_str().unwrap_or_default()));
-        json!({"users": self.contributor_list(), "repositories": repositories})
+        json!({"users": self.contributor_list(), "repositories": self.data.repository_options()})
     }
 
     fn contributor_list(&self) -> Vec<Value> {
@@ -43,16 +41,16 @@ impl View<'_> {
             let map: BTreeMap<String, String> = dates
                 .into_iter()
                 .flatten()
-                .map(|(repo, date)| (data.repo(*repo).id.clone(), date_str(*date)))
+                .map(|(repo, date)| (data.repo(*repo).id.clone(), format_date(*date)))
                 .collect();
             json!(map)
         };
         let mut output = Vec::new();
         for (index, person) in data.snapshot.contributors.iter().enumerate() {
-            if !person.kind.eq_ignore_ascii_case("HUMAN") {
+            let key = index as u32;
+            if !data.is_human(key) {
                 continue;
             }
-            let key = index as u32;
             let values = totals.get(&key).copied().unwrap_or_default();
             let opened = values.get(MetricKind::PullRequestsCreated);
             let merged = values.get(MetricKind::PullRequestsMerged);
@@ -75,9 +73,9 @@ impl View<'_> {
                 "lines_added": values.get(MetricKind::SharedAdditions),
                 "lines_removed": values.get(MetricKind::SharedDeletions),
                 "activity": opened + merged + commits_authored + commits_committed,
-                "first_contribution_date": bounds.first.get(&key).map(|d| date_str(*d)).unwrap_or_default(),
+                "first_contribution_date": bounds.first.get(&key).map(|d| format_date(*d)).unwrap_or_default(),
                 "first_contribution_by_repository": repo_dates(bounds.first_by_repo.get(&key)),
-                "last_contribution_date": bounds.last.get(&key).map(|d| date_str(*d)).unwrap_or_default(),
+                "last_contribution_date": bounds.last.get(&key).map(|d| format_date(*d)).unwrap_or_default(),
                 "last_contribution_by_repository": repo_dates(bounds.last_by_repo.get(&key)),
             }));
         }
@@ -99,12 +97,12 @@ impl View<'_> {
         let selected = repository_id.map(|r| data.repo_index(r).unwrap_or(NONE));
         let multi_branch = |repo: u32| data.repo(repo).target_branches.len() > 1;
 
-        let rows: Vec<&crate::snapshot::Metric> =
-            data.metrics_by_key.get(&key).into_iter().flatten().map(|&i| &data.snapshot.metrics[i as usize]).collect();
+        let rows =
+            data.metrics_by_key.get(key as usize).into_iter().flatten().map(|&i| &data.snapshot.metrics[i as usize]);
         let mut repository_options: BTreeSet<u32> = BTreeSet::new();
         let mut global_rows = Vec::new();
         let mut branch_rows = Vec::new();
-        for row in &rows {
+        for row in rows {
             if row.value != 0
                 && matches!(
                     row.kind,
@@ -118,11 +116,11 @@ impl View<'_> {
             }
             if row.branch != 0 {
                 if multi_branch(row.repo) {
-                    branch_rows.push(*row);
+                    branch_rows.push(row);
                 }
                 continue;
             }
-            global_rows.push(*row);
+            global_rows.push(row);
         }
         let selected_ok = |repo: u32| selected.is_none_or(|s| s == repo);
         let start = match days {
@@ -139,6 +137,8 @@ impl View<'_> {
         let mut totals = Totals::default();
         let mut by_date: HashMap<i32, Totals> = HashMap::new();
         let mut repository_metrics: HashMap<(u32, u32), Totals> = HashMap::new();
+        // Languages of the repositories this person committed to, weighted by their commits.
+        let mut commits_by_repo: HashMap<u32, i64> = HashMap::new();
         for row in &global_rows {
             if !selected_ok(row.repo) || row.date < start || row.date > today {
                 continue;
@@ -148,6 +148,9 @@ impl View<'_> {
             }
             totals.add(row.kind, row.value);
             by_date.entry(row.date).or_default().add(row.kind, row.value);
+            if row.kind == MetricKind::Commits {
+                *commits_by_repo.entry(row.repo).or_default() += row.value;
+            }
         }
         for row in &branch_rows {
             if !selected_ok(row.repo) || row.date < start || row.date > today {
@@ -155,26 +158,16 @@ impl View<'_> {
             }
             repository_metrics.entry((row.repo, row.branch)).or_default().add(row.kind, row.value);
         }
-        // Languages of the repositories this person committed to, weighted by their commits.
-        let mut commits_by_repo: HashMap<u32, i64> = HashMap::new();
-        for row in &global_rows {
-            if row.kind == MetricKind::Commits && selected_ok(row.repo) && row.date >= start && row.date <= today {
-                *commits_by_repo.entry(row.repo).or_default() += row.value;
-            }
-        }
         let languages = language_rows(
             commits_by_repo.iter().map(|(&repo, &commits)| (&data.repo(repo).languages[..], commits as f64)),
         );
 
         let mut options: Vec<u32> = repository_options.iter().copied().collect();
-        options.sort_by_key(|r| fold(&data.repo(*r).full_name()));
+        options.sort_by_cached_key(|r| fold(&data.repo(*r).full_name()));
         let mut repository_activity = Vec::new();
         for &repo in &options {
-            let branches = &data.repo(repo).target_branches;
-            let views: Vec<Option<&crate::state::TargetBranch>> =
-                if branches.len() > 1 { branches.iter().map(Some).collect() } else { vec![None] };
-            for branch in views {
-                let branch_index = branch.map_or(0, |b| data.branch_index(&b.name).unwrap_or(NONE - 1));
+            for branch in data.repo(repo).branch_views() {
+                let branch_index = branch.map_or(0, |b| data.branch_filter(&b.name));
                 let values = repository_metrics.get(&(repo, branch_index)).copied().unwrap_or_default();
                 repository_activity.push(json!({
                     "id": data.repo(repo).id,
@@ -194,7 +187,7 @@ impl View<'_> {
             .map(|day| {
                 let values = by_date.get(&day).copied().unwrap_or_default();
                 json!({
-                    "date": date_str(day),
+                    "date": format_date(day),
                     "pull_requests_opened": values.get(MetricKind::PullRequestsCreated),
                     "pull_requests_merged": values.get(MetricKind::PullRequestsMerged),
                     "commits": values.get(MetricKind::Commits),
@@ -221,7 +214,7 @@ impl View<'_> {
                 .take(100)
                 .map(|i| data.pull_request_view(i))
                 .collect();
-            let mut rows: Vec<(Option<i64>, Value)> = Vec::new();
+            let mut matched: Vec<(Option<i64>, u32)> = Vec::new();
             for (index, commit) in data.snapshot.commits.iter().enumerate() {
                 if (commit.author != key && commit.committer != key)
                     || !selected_ok(commit.repo)
@@ -229,38 +222,27 @@ impl View<'_> {
                 {
                     continue;
                 }
-                let mut roles = Vec::new();
-                if commit.author == key {
-                    roles.push("Author");
-                    authored += 1;
-                }
-                if commit.committer == key {
-                    roles.push("Committer");
-                    committed += 1;
-                }
-                rows.push((
-                    commit.committed_at,
-                    json!({
-                        "sha": commit.sha_hex(),
-                        "repository_id": data.repo(commit.repo).id,
-                        "repository": data.repo(commit.repo).full_name(),
-                        "target_branches": data.commit_branches[index].iter().map(|b| data.branch(*b)).collect::<Vec<_>>(),
-                        "committed_at": iso(commit.committed_at),
-                        "message": commit.subject,
-                        "role": roles.join(", "),
-                        "author_id": data.key_id(commit.author),
-                        "author_name": data.name_or(commit.author, if commit.author_name.is_empty() { "Unknown" } else { &commit.author_name }),
-                        "author_login": data.login(commit.author),
-                        "committer_id": data.key_id(commit.committer),
-                        "committer_name": data.name_or(commit.committer, if commit.committer_name.is_empty() { "Unknown" } else { &commit.committer_name }),
-                        "committer_login": data.login(commit.committer),
-                        "url": data.commit_url(commit),
-                    }),
-                ));
+                authored += usize::from(commit.author == key);
+                committed += usize::from(commit.committer == key);
+                matched.push((commit.committed_at, index as u32));
             }
-            // Stable, newest first by ISO string (missing timestamps last).
-            rows.sort_by(|a, b| b.0.unwrap_or(i64::MIN).cmp(&a.0.unwrap_or(i64::MIN)));
-            commits = rows.into_iter().take(100).map(|(_, v)| v).collect();
+            // Stable, newest first (missing timestamps last); only the newest are shown.
+            matched.sort_by(|a, b| b.0.unwrap_or(i64::MIN).cmp(&a.0.unwrap_or(i64::MIN)));
+            commits = matched
+                .iter()
+                .take(100)
+                .map(|&(_, index)| {
+                    let commit = &data.snapshot.commits[index as usize];
+                    let roles: Vec<&str> = [(commit.author == key, "Author"), (commit.committer == key, "Committer")]
+                        .into_iter()
+                        .filter_map(|(is, role)| is.then_some(role))
+                        .collect();
+                    let mut row = data.commit_view(index);
+                    row["message"] = json!(commit.subject);
+                    row["role"] = json!(roles.join(", "));
+                    row
+                })
+                .collect();
             ai_usage = self.contributor_ai_usage(key, start, selected);
             ai_provider_lines = self.contributor_ai_provider_lines(key, start, selected);
         }
@@ -279,7 +261,7 @@ impl View<'_> {
             "affiliations": person.affiliations,
         });
         contributor["affiliation_history"] =
-            json!(profile_affiliations(&person.affiliation, &person.affiliations, &companies, &date_str(today)));
+            json!(profile_affiliations(&person.affiliation, &person.affiliations, &companies, &format_date(today)));
         Some(json!({
             "contributor": contributor,
             "summary": {
@@ -309,35 +291,22 @@ impl View<'_> {
         let data = self.data;
         let today = self.today;
         let selected_ok = |repo: u32| selected.is_none_or(|s| s == repo);
-        #[derive(Default)]
-        struct Activity {
-            name: String,
-            provider: String,
-            model: String,
-            commits: HashSet<u32>,
-            pull_requests: HashSet<u32>,
-            categories: [HashSet<u32>; 3],
-        }
-        let mut models: Ordered<String, Activity> = Ordered::new();
+        let mut models: Ordered<String, Identity> = Ordered::new();
         let mut categories: [HashSet<u32>; 3] = Default::default();
         let mut attributed_commits = HashSet::new();
         let mut attributed_prs = HashSet::new();
-        let mut record = |identity: u32, category: usize, commit: Option<u32>, pr: Option<u32>| {
+        let mut record = |role: AiRole, identity: u32, commit: Option<u32>, pr: Option<u32>| {
             if identity == NONE {
                 return;
             }
-            let identity = &data.snapshot.ai_identities[identity as usize];
-            let activity = models.entry(identity.key.clone());
-            if activity.name.is_empty() && activity.provider.is_empty() {
-                activity.name = identity.name.clone();
-                activity.provider = identity.provider.clone();
-                activity.model = identity.model.clone();
-            }
+            let model = &data.snapshot.ai_identities[identity as usize];
+            let activity = models.entry(model.key.clone());
+            activity.describe(model);
             if let Some(commit) = commit {
                 activity.commits.insert(commit);
-                activity.categories[category].insert(commit);
+                activity.categories[role.index()].insert(commit);
                 attributed_commits.insert(commit);
-                categories[category].insert(commit);
+                categories[role.index()].insert(commit);
             }
             if let Some(pr) = pr {
                 activity.pull_requests.insert(pr);
@@ -346,7 +315,6 @@ impl View<'_> {
         };
 
         for (index, commit) in data.snapshot.commits.iter().enumerate() {
-            let index = index as u32;
             if !selected_ok(commit.repo)
                 || (commit.author != key && commit.committer != key)
                 || !in_range(day_of(commit.committed_at), Some(start), Some(today))
@@ -354,17 +322,11 @@ impl View<'_> {
                 continue;
             }
             let Some(ai) = &commit.ai else { continue };
-            if ai.ai_author {
-                record(ai.ai_author_identity, 0, Some(index), None);
-            }
-            for name in &ai.coauthors {
-                record(name.identity, 1, Some(index), None);
-            }
-            for name in &ai.assistants {
-                record(name.identity, 2, Some(index), None);
+            for (role, identity, _) in ai.attributions(commit.author) {
+                record(role, identity, Some(index as u32), None);
             }
         }
-        let author_is_ai = data.kind(key).eq_ignore_ascii_case("AI");
+        let author_is_ai = data.is_ai(key);
         for (index, pr) in data.snapshot.pull_requests.iter().enumerate() {
             let index = index as u32;
             if !selected_ok(pr.repo) || pr.author != key || !in_range(day_of(pr.created_at), Some(start), Some(today)) {
@@ -376,18 +338,12 @@ impl View<'_> {
                     continue;
                 }
                 let Some(ai) = &commit.ai else { continue };
-                if ai.ai_author {
-                    record(ai.ai_author_identity, 0, None, Some(index));
-                }
-                for name in &ai.coauthors {
-                    record(name.identity, 1, None, Some(index));
-                }
-                for name in &ai.assistants {
-                    record(name.identity, 2, None, Some(index));
+                for (role, identity, _) in ai.attributions(commit.author) {
+                    record(role, identity, None, Some(index));
                 }
             }
             if author_is_ai {
-                record(pr.author_ai_identity, 0, None, Some(index));
+                record(AiRole::Author, pr.author_ai_identity, None, Some(index));
             }
         }
         let mut top_models: Vec<Value> = models
@@ -401,29 +357,26 @@ impl View<'_> {
                     "model": a.model,
                     "commits": a.commits.len(),
                     "pull_requests": a.pull_requests.len(),
-                    "commits_ai_authored": a.categories[0].len(),
-                    "commits_ai_coauthored": a.categories[1].len(),
-                    "commits_ai_assisted": a.categories[2].len(),
+                    "commits_ai_authored": a.categories[AiRole::Author.index()].len(),
+                    "commits_ai_coauthored": a.categories[AiRole::CoAuthor.index()].len(),
+                    "commits_ai_assisted": a.categories[AiRole::Assistant.index()].len(),
                 })
             })
             .collect();
-        top_models.sort_by(|a, b| {
-            let key = |v: &Value| {
-                let commits = v["commits"].as_i64().unwrap_or(0);
-                (
-                    commits + v["pull_requests"].as_i64().unwrap_or(0),
-                    commits,
-                    fold(v["name"].as_str().unwrap_or_default()),
-                )
-            };
-            key(b).cmp(&key(a))
+        top_models.sort_by_cached_key(|v| {
+            let commits = v["commits"].as_i64().unwrap_or(0);
+            std::cmp::Reverse((
+                commits + v["pull_requests"].as_i64().unwrap_or(0),
+                commits,
+                fold(v["name"].as_str().unwrap_or_default()),
+            ))
         });
         json!({
             "summary": {
                 "commits_with_ai": attributed_commits.len(),
-                "commits_ai_authored": categories[0].len(),
-                "commits_ai_coauthored": categories[1].len(),
-                "commits_ai_assisted": categories[2].len(),
+                "commits_ai_authored": categories[AiRole::Author.index()].len(),
+                "commits_ai_coauthored": categories[AiRole::CoAuthor.index()].len(),
+                "commits_ai_assisted": categories[AiRole::Assistant.index()].len(),
                 "pull_requests_with_ai": attributed_prs.len(),
             },
             "top_models": top_models,
@@ -433,7 +386,7 @@ impl View<'_> {
     /// Merged PR additions counted once per AI provider for one contributor.
     fn contributor_ai_provider_lines(&self, key: u32, start: i32, selected: Option<u32>) -> Value {
         let data = self.data;
-        let provider = |identity: u32| data.snapshot.ai_identities[identity as usize].provider.clone();
+        let provider = |identity: u32| data.snapshot.ai_identities[identity as usize].provider.as_str();
         let mut additions: HashMap<String, i64> = HashMap::new();
         let mut labels: HashMap<String, String> = HashMap::new();
         for (index, pr) in data.snapshot.pull_requests.iter().enumerate() {
@@ -444,7 +397,7 @@ impl View<'_> {
                 continue;
             }
             let mut participates = pr.author == key;
-            let mut providers: BTreeSet<String> = BTreeSet::new();
+            let mut providers: BTreeSet<&str> = BTreeSet::new();
             if pr.author_provider_identity != NONE {
                 providers.insert(provider(pr.author_provider_identity));
             }
@@ -470,7 +423,7 @@ impl View<'_> {
             }
             let category = match providers.len() {
                 0 => "No provider identified".to_string(),
-                1 => providers.into_iter().next().unwrap_or_default(),
+                1 => providers.into_iter().next().unwrap_or_default().to_string(),
                 _ => "Multiple providers".to_string(),
             };
             let folded = fold(&category);

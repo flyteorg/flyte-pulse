@@ -13,7 +13,7 @@ mod report;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
 use pulse_core::state::{Commit, EmailIdentity, PullRequest, PullRequestCommit, PullRequestReview, Repository, State};
@@ -115,7 +115,7 @@ struct RepoContext<'a> {
 }
 
 fn now() -> Ts {
-    Ts(SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0))
+    Ts(crate::report::now_seconds())
 }
 
 /// A GitHub GraphQL client using the same token and wait budget as `pulse sync`.

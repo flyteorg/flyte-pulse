@@ -10,8 +10,8 @@ use pulse_core::state::{Commit, Contributor, PullRequest, PullRequestReview, Sta
 use pulse_core::time::{Ts, format_date};
 
 use crate::attribution::{
-    TrailerRole, ai_contributor_names, ai_model_identity, contributor_alias_index, is_ai_name, normalized_ai_name,
-    resolve_trailer_contributor, trailer_person, trailers,
+    ResolvedTrailer, TrailerRole, ai_contributor_names, ai_model_identity, contributor_alias_index, normalized_ai_name,
+    resolve_trailers,
 };
 use crate::companies::CompanyCatalog;
 
@@ -19,6 +19,8 @@ use crate::companies::CompanyCatalog;
 pub struct Facts<'a> {
     pub state: &'a State,
     pub contributors: HashMap<&'a str, &'a Contributor>,
+    /// Uppercased identity kind per contributor (`BOT` for flagged bots without one).
+    kinds: HashMap<&'a str, String>,
     pub aliases: HashMap<String, HashSet<String>>,
     pub known_ai_names: HashSet<String>,
     pub pull_requests: HashMap<(&'a str, &'a str), &'a PullRequest>,
@@ -29,12 +31,28 @@ pub struct Facts<'a> {
     pub branches_by_commit: HashMap<(&'a str, &'a str), BTreeSet<&'a str>>,
     /// Commits linked to at least one tracked pull request.
     pub linked_commits: HashSet<(&'a str, &'a str)>,
+    /// Resolved trailers of every linked commit.
+    trailers: HashMap<(&'a str, &'a str), Vec<ResolvedTrailer>>,
     pub reviews_by_pull_request: HashMap<(&'a str, &'a str), Vec<&'a PullRequestReview>>,
 }
 
 impl<'a> Facts<'a> {
     pub fn new(state: &'a State) -> Self {
-        let contributors = state.contributors.iter().filter(|c| !c.id.is_empty()).map(|c| (c.id.as_str(), c)).collect();
+        let contributors: HashMap<&str, &Contributor> =
+            state.contributors.iter().filter(|c| !c.id.is_empty()).map(|c| (c.id.as_str(), c)).collect();
+        let kinds = contributors
+            .iter()
+            .map(|(&id, c)| {
+                let kind = if !c.identity_kind.is_empty() {
+                    c.identity_kind.to_uppercase()
+                } else if c.is_bot {
+                    "BOT".to_string()
+                } else {
+                    "UNKNOWN".to_string()
+                };
+                (id, kind)
+            })
+            .collect();
         let pull_requests = state
             .pull_requests
             .iter()
@@ -64,27 +82,40 @@ impl<'a> Facts<'a> {
                 .or_default()
                 .push(review);
         }
+        let aliases = contributor_alias_index(&state.contributors);
+        let known_ai_names = ai_contributor_names(&state.contributors);
+        let trailers = state
+            .commits
+            .iter()
+            .filter(|c| linked_commits.contains(&(c.repository_id.as_str(), c.sha.as_str())))
+            .map(|c| {
+                ((c.repository_id.as_str(), c.sha.as_str()), resolve_trailers(&c.message, &aliases, &known_ai_names))
+            })
+            .collect();
         Self {
             state,
             contributors,
-            aliases: contributor_alias_index(&state.contributors),
-            known_ai_names: ai_contributor_names(&state.contributors),
+            kinds,
+            aliases,
+            known_ai_names,
             pull_requests,
             commits,
             commits_by_pull_request,
             branches_by_commit,
             linked_commits,
+            trailers,
             reviews_by_pull_request,
         }
     }
 
-    pub fn kind(&self, contributor_id: &str) -> String {
-        match self.contributors.get(contributor_id) {
-            Some(c) if !c.identity_kind.is_empty() => c.identity_kind.to_uppercase(),
-            Some(c) if c.is_bot => "BOT".into(),
-            Some(_) => "UNKNOWN".into(),
-            None => String::new(),
-        }
+    /// `HUMAN`, `BOT`, `AI`, or `UNKNOWN`; empty for an unknown contributor ID.
+    pub fn kind(&self, contributor_id: &str) -> &str {
+        self.kinds.get(contributor_id).map_or("", String::as_str)
+    }
+
+    /// The resolved `Co-Authored-By` / `Assisted-By` trailers of a linked commit.
+    pub fn commit_trailers(&self, commit: &'a Commit) -> &[ResolvedTrailer] {
+        self.trailers.get(&(commit.repository_id.as_str(), commit.sha.as_str())).map_or(&[], Vec::as_slice)
     }
 
     /// Display name, then login, used for AI identity names.
@@ -103,7 +134,7 @@ impl<'a> Facts<'a> {
             let Some(at) = review.submitted_at else { continue };
             if reviewer.is_empty()
                 || reviewer == pr.author_contributor_id
-                || matches!(self.kind(reviewer).as_str(), "BOT" | "AI")
+                || matches!(self.kind(reviewer), "BOT" | "AI")
             {
                 continue;
             }
@@ -179,7 +210,7 @@ fn shared_participants(facts: &Facts, pr: &PullRequest) -> BTreeSet<String> {
             participants.insert(format!("ai-provider:{}", normalized_ai_name(&identity.provider)));
         }
     };
-    let add_contributor = |participants: &mut BTreeSet<String>, id: &str| match facts.kind(id).as_str() {
+    let add_contributor = |participants: &mut BTreeSet<String>, id: &str| match facts.kind(id) {
         _ if id.is_empty() => {}
         "BOT" => {}
         "AI" => add_ai(participants, facts.label(id).unwrap_or_default()),
@@ -192,14 +223,11 @@ fn shared_participants(facts: &Facts, pr: &PullRequest) -> BTreeSet<String> {
     let key = (pr.repository_id.as_str(), pr.provider_id.as_str());
     for commit in facts.commits_by_pull_request.get(&key).into_iter().flatten() {
         add_contributor(&mut participants, &commit.author_contributor_id);
-        for (role, raw) in trailers(&commit.message) {
-            let person = trailer_person(&raw);
-            let resolved = resolve_trailer_contributor(&raw, &facts.aliases);
-            if is_ai_name(&person, &facts.known_ai_names) || facts.kind(&resolved) == "AI" {
-                let name = facts.label(&resolved).unwrap_or(&person).to_string();
-                add_ai(&mut participants, &name);
-            } else if role == TrailerRole::CoAuthoredBy && !resolved.is_empty() {
-                add_contributor(&mut participants, &resolved);
+        for trailer in facts.commit_trailers(commit) {
+            if trailer.is_ai || facts.kind(&trailer.resolved) == "AI" {
+                add_ai(&mut participants, facts.label(&trailer.resolved).unwrap_or(&trailer.person));
+            } else if trailer.role == TrailerRole::CoAuthoredBy && !trailer.resolved.is_empty() {
+                add_contributor(&mut participants, &trailer.resolved);
             }
         }
     }
@@ -220,7 +248,7 @@ pub struct CompanyMetrics {
 /// Company credit with deduplication inside each company before aggregation.
 pub fn build_company_metrics(facts: &Facts, catalog: &CompanyCatalog) -> CompanyMetrics {
     // Unknown identities ("") count as human: unresolved co-authors keep coverage honest.
-    let human = |id: &str| !matches!(facts.kind(id).as_str(), "AI" | "BOT");
+    let human = |id: &str| !matches!(facts.kind(id), "AI" | "BOT");
     let mut participants: HashMap<(&str, &str), BTreeSet<String>> = HashMap::new();
     for commit in facts.counted_commits() {
         let author = commit.author_contributor_id.as_str();
@@ -228,13 +256,9 @@ pub fn build_company_metrics(facts: &Facts, catalog: &CompanyCatalog) -> Company
         if human(author) {
             ids.insert(author.to_string());
         }
-        for (role, raw) in trailers(&commit.message) {
-            if role != TrailerRole::CoAuthoredBy || is_ai_name(&trailer_person(&raw), &facts.known_ai_names) {
-                continue;
-            }
-            let identity = resolve_trailer_contributor(&raw, &facts.aliases);
-            if human(&identity) {
-                ids.insert(identity);
+        for trailer in facts.commit_trailers(commit) {
+            if trailer.role == TrailerRole::CoAuthoredBy && !trailer.is_ai && human(&trailer.resolved) {
+                ids.insert(trailer.resolved.clone());
             }
         }
         participants.insert((commit.repository_id.as_str(), commit.sha.as_str()), ids);

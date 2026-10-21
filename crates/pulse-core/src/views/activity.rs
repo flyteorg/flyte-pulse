@@ -1,13 +1,15 @@
 //! Overview, repository list, and repository detail (`_dashboard_data`,
 //! `repository_list`, `repository_detail`).
 
+use std::cmp::Reverse;
 use std::collections::HashMap;
 
 use serde_json::{Value, json};
 
 use super::languages::{by_size, language_rows};
-use super::{Dataset, Ordered, Totals, View, date_str, day_of, days_value, fold, in_range, iso};
+use super::{Dataset, Ordered, Totals, View, day_of, days_value, fold, in_range, iso};
 use crate::snapshot::{MetricKind, NONE, Pr};
+use crate::time::format_date;
 
 /// Which metric rows make up the "snapshot" a query sees. Repository pages use
 /// their repository's (and branch's) rows only, which also bound "all" dates.
@@ -78,10 +80,7 @@ impl Dataset {
         let (mut merged, mut hours) = (0, Vec::new());
         for pr in &self.snapshot.pull_requests {
             let Some(merged_at) = pr.merged_at else { continue };
-            if !in_range(day_of(Some(merged_at)), Some(start), Some(end))
-                || self.kind(pr.author).eq_ignore_ascii_case("BOT")
-                || !include(pr)
-            {
+            if !in_range(day_of(Some(merged_at)), Some(start), Some(end)) || self.is_bot(pr.author) || !include(pr) {
                 continue;
             }
             merged += 1;
@@ -122,22 +121,24 @@ impl Dataset {
             "url": self.pr_url(pr),
         })
     }
+
+    /// The name a ranking shows: display name, then `@login`, then the identifier.
+    fn ranking_name(&self, key: u32) -> String {
+        match self.person(key) {
+            Some(p) if !p.display_name.is_empty() => p.display_name.clone(),
+            Some(p) if !p.login.is_empty() => format!("@{}", p.login),
+            _ => self.key_id(key).to_string(),
+        }
+    }
 }
 
 fn contributor_row(view: &View, key: u32, values: &Totals) -> Value {
     let data = view.data;
-    let person = data.person(key);
-    let login = data.login(key);
-    let name = match person {
-        Some(p) if !p.display_name.is_empty() => p.display_name.clone(),
-        _ if !login.is_empty() => format!("@{login}"),
-        _ => data.key_id(key).to_string(),
-    };
     json!({
         "id": data.key_id(key),
-        "name": name,
-        "login": login,
-        "identity_kind": person.map_or("UNKNOWN", |p| p.kind.as_str()),
+        "name": data.ranking_name(key),
+        "login": data.login(key),
+        "identity_kind": data.person(key).map_or("UNKNOWN", |p| p.kind.as_str()),
         "pull_requests_opened": values.get(MetricKind::PullRequestsCreated),
         "pull_requests_merged": values.get(MetricKind::PullRequestsMerged),
         "commits": values.get(MetricKind::Commits),
@@ -156,7 +157,7 @@ fn text(value: &Value, key: &str) -> String {
 
 /// Descending by score, then descending by case-folded name; ties keep their order.
 pub(crate) fn sort_by_score(rows: &mut [Value], score: impl Fn(&Value) -> i64) {
-    rows.sort_by_key(|row| std::cmp::Reverse((score(row), fold(&text(row, "name")))));
+    rows.sort_by_cached_key(|row| Reverse((score(row), fold(&text(row, "name")))));
 }
 
 impl View<'_> {
@@ -170,7 +171,7 @@ impl View<'_> {
         let data = self.data;
         let today = self.today;
         let repo_filter = repository_id.map(|id| data.repo_index(id));
-        let target = target_branch.map(|name| data.branch_index(name).unwrap_or(NONE - 1));
+        let target = target_branch.map(|name| data.branch_filter(name));
 
         // The rows this query's "snapshot" contains.
         let metrics = &data.snapshot.metrics;
@@ -255,24 +256,26 @@ impl View<'_> {
             .map(|day| {
                 let values = daily.get(&day).copied().unwrap_or_default();
                 json!({
-                    "date": date_str(day),
+                    "date": format_date(day),
                     "pull_requests_merged": values.get(MetricKind::PullRequestsMerged),
                     "commits": values.get(MetricKind::Commits),
                 })
             })
             .collect();
 
-        let ranked = |totals: &Ordered<u32, Totals>| {
-            let mut rows: Vec<(u32, Value)> =
-                totals.entries.iter().map(|(key, values)| (*key, contributor_row(self, *key, values))).collect();
+        let ranked = |totals: &Ordered<u32, Totals>| -> Vec<(u32, Value)> {
+            let mut entries: Vec<&(u32, Totals)> = totals.entries.iter().collect();
             // Merged pull requests first, then commits and opened pull requests, so lists
             // cut to the top few keep the contributors with the most merged work.
-            rows.sort_by(|(_, a), (_, b)| {
-                let key =
-                    |v: &Value| (int(v, "pull_requests_merged"), int(v, "commits"), int(v, "pull_requests_opened"));
-                key(b).cmp(&key(a)).then_with(|| fold(&text(a, "name")).cmp(&fold(&text(b, "name"))))
+            entries.sort_by_cached_key(|(key, values)| {
+                let score = (
+                    values.get(MetricKind::PullRequestsMerged),
+                    values.get(MetricKind::Commits),
+                    values.get(MetricKind::PullRequestsCreated),
+                );
+                (Reverse(score), fold(&data.ranking_name(*key)))
             });
-            rows
+            entries.into_iter().map(|(key, values)| (*key, contributor_row(self, *key, values))).collect()
         };
         let top = ranked(&contributor_totals);
         // Community activity is what humans did while not at a maintainer company.
@@ -288,7 +291,7 @@ impl View<'_> {
                 bounds.first_by_repo.iter().filter_map(|(key, dates)| dates.get(&repo).map(|d| (*key, *d))).collect()
             }
             Some(None) => HashMap::new(),
-            None => bounds.first.clone(),
+            None => bounds.first,
         };
         let is_new = |date: i32| start <= date && date <= end;
         let new_humans = selected_first.iter().filter(|(key, date)| is_new(**date) && data.is_human(**key)).count();
@@ -300,7 +303,7 @@ impl View<'_> {
                     return None;
                 }
                 let mut row = row.clone();
-                row["first_contribution_date"] = json!(date_str(date));
+                row["first_contribution_date"] = json!(format_date(date));
                 Some((date, row))
             })
             .collect();
@@ -334,7 +337,7 @@ impl View<'_> {
                 continue;
             }
             for branch in branches {
-                let index = data.branch_index(&branch.name).unwrap_or(NONE - 1);
+                let index = data.branch_filter(&branch.name);
                 let values = branch_totals.get(&(*repo, index)).copied().unwrap_or_default();
                 repository_activity.push(repository_row(*repo, &values, Some((&branch.name, &branch.label))));
             }
@@ -365,8 +368,6 @@ impl View<'_> {
         // Code size by language for the repositories in view.
         let languages = language_rows(repos_in_view.iter().map(|&r| by_size(&data.repo(r).languages)));
 
-        let mut repository_options: Vec<&crate::snapshot::Repo> = data.snapshot.repositories.iter().collect();
-        repository_options.sort_by(|a, b| a.id.cmp(&b.id));
         let meta = &data.snapshot.meta;
         json!({
             "metrics_generated_at": iso(Some(meta.generated_at)),
@@ -374,7 +375,7 @@ impl View<'_> {
             "metrics_version": meta.version,
             "raw_version": meta.raw_version,
             "serving_version": meta.version,
-            "repositories": repository_options.iter().map(|r| json!({"id": r.id, "name": r.full_name()})).collect::<Vec<_>>(),
+            "repositories": data.repository_options(),
             "summary": {
                 "pull_requests_opened": totals.get(MetricKind::PullRequestsCreated),
                 "pull_requests_merged": totals.get(MetricKind::PullRequestsMerged),
@@ -409,19 +410,14 @@ impl View<'_> {
         let data = self.data;
         let mut output = Vec::new();
         for (index, repo) in data.snapshot.repositories.iter().enumerate() {
-            let branches: Vec<Option<&crate::state::TargetBranch>> = if repo.target_branches.len() > 1 {
-                repo.target_branches.iter().map(Some).collect()
-            } else {
-                vec![None]
-            };
-            for branch in branches {
+            for branch in repo.branch_views() {
                 let activity = self.dashboard(Scope::All, Some(365), Some(&repo.id), branch.map(|b| b.name.as_str()));
                 output.push(json!({
                     "id": repo.id,
                     "name": data.repository_label(index as u32, branch.map(|b| (b.name.as_str(), b.label.as_str()))),
                     "target_branch": branch.map_or("", |b| b.name.as_str()),
                     "branch_label": branch.map_or("", |b| b.label.as_str()),
-                    "status": if repo.status.is_empty() { "UNKNOWN" } else { repo.status.as_str() },
+                    "status": repo.status_label(),
                     "summary": activity["summary"],
                 }));
             }
@@ -434,13 +430,13 @@ impl View<'_> {
         let data = self.data;
         let repo_index = data.repo_index(id)?;
         let repo = data.repo(repo_index);
-        let scope = match target_branch {
-            Some(branch) => Scope::RepoBranch(repo_index, data.branch_index(branch).unwrap_or(NONE - 1)),
+        let branch_index = target_branch.map(|b| data.branch_filter(b));
+        let scope = match branch_index {
+            Some(branch) => Scope::RepoBranch(repo_index, branch),
             None => Scope::Repo(repo_index),
         };
         let activity = self.dashboard(scope, days, Some(id), target_branch);
         let start = days.map(|d| self.today - (d - 1));
-        let branch_index = target_branch.map(|b| data.branch_index(b).unwrap_or(NONE - 1));
         let recent: Vec<Value> = data
             .prs_newest_first
             .iter()
@@ -466,7 +462,7 @@ impl View<'_> {
                 "name": repo.full_name(),
                 "owner": repo.owner,
                 "repository_name": repo.name,
-                "status": if repo.status.is_empty() { "UNKNOWN" } else { repo.status.as_str() },
+                "status": repo.status_label(),
                 "module": repo.module,
                 "target_branches": repo.target_branches.iter().map(|b| json!({"name": b.name, "label": b.label})).collect::<Vec<_>>(),
                 "selected_target_branch": target_branch.unwrap_or(""),

@@ -62,6 +62,12 @@ pub fn normalize_company(value: &str) -> String {
     value.to_lowercase().split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// The lowercased host of a web address without `www.`, such as `union.ai`.
+pub fn url_host(url: &str) -> String {
+    let rest = url.trim().trim_start_matches("https://").trim_start_matches("http://");
+    rest.split(['/', '?', '#']).next().unwrap_or_default().trim_start_matches("www.").to_lowercase()
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct CompanyCatalog {
     pub companies: Vec<Company>,
@@ -106,9 +112,7 @@ impl CompanyCatalog {
 
     /// The website host without `www.`, such as `union.ai`.
     pub fn website_host(&self, id: &str) -> String {
-        let url = self.website(id);
-        let host = url.trim_start_matches("https://").split(['/', '?', '#']).next().unwrap_or_default();
-        host.trim_start_matches("www.").to_lowercase()
+        url_host(&self.website(id))
     }
 
     /// The dated period covering `day` (`YYYY-MM-DD`), if any.
