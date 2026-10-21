@@ -94,7 +94,18 @@ jobs:
         with:
           tool: wasm-bindgen@${{ steps.versions.outputs.wasm_bindgen }}
       - name: Install wasm-opt
-        run: sudo apt-get install -y --no-install-recommends binaryen
+        # Ubuntu's binaryen (108) breaks the reference table wasm-bindgen exports, so the
+        # site fails to start; use a pinned release, checked against its published hash.
+        env:
+          BINARYEN: version_133
+          BINARYEN_SHA256: 2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489
+        run: |
+          archive="binaryen-$BINARYEN-x86_64-linux.tar.gz"
+          curl -sSfL -o "$RUNNER_TEMP/$archive" "https://github.com/WebAssembly/binaryen/releases/download/$BINARYEN/$archive"
+          echo "$BINARYEN_SHA256  $RUNNER_TEMP/$archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/binaryen"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/binaryen" --strip-components=1
+          echo "$RUNNER_TEMP/binaryen/bin" >> "$GITHUB_PATH"
 
       - name: Build the collector
         run: cargo build --release -p pulse
