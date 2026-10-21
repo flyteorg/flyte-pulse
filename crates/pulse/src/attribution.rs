@@ -22,6 +22,10 @@ static CONTEXT_SIZE: LazyLock<Regex> =
 static CLAUDE_PRODUCT: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)^(?:(?:code|claude)\b\s*[-_:]*\s*)+").unwrap());
 static NOREPLY_ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\d+\+").unwrap());
+/// A bare tool version left after the product name, such as the `2.1.81` of `Claude Code 2.1.81`.
+static TOOL_VERSION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\d+(?:\.\d+)+$").unwrap());
+/// A dotted version ending a model name (`Opus 4.5`, `gpt-4.1`); group 1 is the major version.
+static TRAILING_VERSION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?:^|[\s_-])(\d+)\.\d+(?:\.\d+)*$").unwrap());
 
 struct ToolAlias {
     pattern: Regex,
@@ -84,12 +88,25 @@ fn strip_separators(value: &str) -> &str {
 pub struct AiIdentity {
     pub key: String,
     pub provider: String,
+    /// The model family and major version, such as `Opus 4`.
     pub model: String,
     pub name: String,
+    /// The full version the attribution named, such as `4.5`; empty when it named
+    /// none or only a major version.
+    pub version: String,
 }
 
-/// Split an AI attribution into a stable provider and model identity.
+/// Split an AI attribution into a stable provider and model identity. Point
+/// releases of a model are grouped under the major version (`Opus 4.5` and
+/// `Opus 4.6` are both `Opus 4`), with the exact version kept separately.
 pub fn ai_model_identity(value: &str) -> AiIdentity {
+    // `tool version / model`, such as `Claude Code 2.1.81 / Claude Opus 4.6`: the
+    // last part naming a provider is the model.
+    let value = value
+        .split('/')
+        .map(str::trim)
+        .rfind(|part| PROVIDERS.iter().any(|p| p.detect.is_match(part)))
+        .unwrap_or(value);
     let mut model_name = CONTEXT_NOTE.replace_all(value, "").into_owned();
     model_name = CONTEXT_SIZE.replace_all(&model_name, "").into_owned();
     model_name = strip_separators(SPACES.replace_all(&model_name, " ").as_ref()).to_string();
@@ -101,6 +118,7 @@ pub fn ai_model_identity(value: &str) -> AiIdentity {
                 provider: alias.label.to_string(),
                 model: String::new(),
                 name: alias.label.to_string(),
+                version: String::new(),
             };
         }
     }
@@ -117,15 +135,25 @@ pub fn ai_model_identity(value: &str) -> AiIdentity {
     if provider == "Claude" {
         model_name = strip_separators(&CLAUDE_PRODUCT.replacen(&model_name, 1, "")).to_string();
     }
-    if matches!(model_name.to_lowercase().as_str(), "" | "claude" | "code" | "unspecified" | "unspecified model") {
+    if matches!(model_name.to_lowercase().as_str(), "" | "claude" | "code" | "unspecified" | "unspecified model")
+        || TOOL_VERSION.is_match(&model_name)
+    {
         return AiIdentity {
             key: format!("{}:unspecified model", provider.to_lowercase()),
             provider: provider.to_string(),
             model: String::new(),
             name: provider.to_string(),
+            version: String::new(),
         };
     }
-    let model_name = SPACES.replace_all(&model_name, " ").trim().to_string();
+    let mut model_name = SPACES.replace_all(&model_name, " ").trim().to_string();
+    let mut version = String::new();
+    if let Some(captures) = TRAILING_VERSION.captures(&model_name)
+        && let Some(major) = captures.get(1)
+    {
+        version = model_name[major.start()..].to_string();
+        model_name = format!("{}{}", &model_name[..major.start()], major.as_str());
+    }
     let model_name = if model_name.is_empty() { "Unspecified model".to_string() } else { model_name };
     let name = if provider == "Other" { model_name.clone() } else { format!("{provider} {model_name}") };
     AiIdentity {
@@ -133,6 +161,7 @@ pub fn ai_model_identity(value: &str) -> AiIdentity {
         provider: provider.to_string(),
         model: model_name,
         name,
+        version,
     }
 }
 
@@ -303,7 +332,7 @@ mod tests {
     fn model_identities() {
         assert_eq!(
             identity("Claude Opus 4.5 (1M context)"),
-            ("claude:opus 4 5".into(), "Claude".into(), "Opus 4.5".into(), "Claude Opus 4.5".into())
+            ("claude:opus 4".into(), "Claude".into(), "Opus 4".into(), "Claude Opus 4".into())
         );
         assert_eq!(
             identity("Claude Code"),
@@ -314,8 +343,33 @@ mod tests {
         assert_eq!(identity("GitHub Copilot").0, "copilot:copilot");
         assert_eq!(identity("gpt-5-codex").1, "OpenAI");
         assert_eq!(identity("gpt-5-codex").2, "gpt-5-codex");
-        assert_eq!(identity("Gemini 2.5 Pro").0, "google:gemini 2 5 pro");
+        assert_eq!(identity("Gemini 2.5 Pro").0, "google:gemini 2 5 pro", "only a trailing version is grouped");
         assert_eq!(identity("anthropic-claude-sonnet-4").2, "sonnet-4");
+    }
+
+    #[test]
+    fn point_releases_group_under_the_major_version() {
+        let version = |value: &str| ai_model_identity(value).version;
+        assert_eq!(version("Claude Opus 4.5 (1M context)"), "4.5");
+        assert_eq!(version("Claude Opus 5"), "");
+        assert_eq!(identity("Claude Opus 5").2, "Opus 5");
+        assert_eq!(identity("Claude Fable 5.1").2, "Fable 5");
+        assert_eq!(identity("Claude Sonnet 4.6").0, identity("Claude Sonnet 4.5").0);
+        assert_eq!(
+            identity("gpt-4.1"),
+            ("openai:gpt 4".into(), "OpenAI".into(), "gpt-4".into(), "OpenAI gpt-4".into())
+        );
+        assert_eq!(version("gpt-4.1"), "4.1");
+        assert_eq!(version("Gemini 2.5 Pro"), "");
+    }
+
+    #[test]
+    fn tool_versions_are_not_models() {
+        let combined = ai_model_identity("Claude Code 2.1.81 / Claude Opus 4.6");
+        assert_eq!((combined.key.as_str(), combined.version.as_str()), ("claude:opus 4", "4.6"));
+        let noted = ai_model_identity("Claude Code 2.1.157 / Claude Opus 4.7 (1M context)");
+        assert_eq!((noted.model.as_str(), noted.version.as_str()), ("Opus 4", "4.7"));
+        assert_eq!(identity("Claude Code 2.1.81").0, "claude:unspecified model");
     }
 
     #[test]

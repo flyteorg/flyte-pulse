@@ -50,7 +50,9 @@ address, so any view can be shared as a link.
 - Community activity is activity by people while they are not affiliated with a
   company that maintains Flyte (Union).
 - AI attribution comes from AI accounts and from `Co-Authored-By` and `Assisted-By`
-  commit trailers that name a recognized AI tool.
+  commit trailers that name a recognized AI tool. Point releases of a model count as
+  one model (Opus 4.5 and Opus 4.6 are both "Opus 4"); the provider page lists the
+  exact versions seen.
 
 ## Common tasks
 

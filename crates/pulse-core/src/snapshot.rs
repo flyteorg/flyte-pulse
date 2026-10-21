@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::state::{Language, TargetBranch};
 
-pub const MAGIC: &[u8; 8] = b"PULSE\x00\x00\x04";
+pub const MAGIC: &[u8; 8] = b"PULSE\x00\x00\x05";
 pub const NONE: u32 = u32::MAX;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -204,12 +204,17 @@ pub struct Coverage {
     pub reviewed: i64,
 }
 
+/// An AI model or tool. Point releases share a key (`claude:opus 4`) and differ
+/// only in `version`.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AiIdentity {
     pub key: String,
     pub provider: String,
+    /// Model family and major version, such as `Opus 4`; empty for a tool.
     pub model: String,
     pub name: String,
+    /// The exact version named, such as `4.5`, or empty.
+    pub version: String,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]

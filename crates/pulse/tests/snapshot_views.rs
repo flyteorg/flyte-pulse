@@ -190,6 +190,10 @@ fn ai_attribution_from_trailers() {
     let claude = get(&data, "/api/ai-contributors/provider%3Aclaude?provider=Claude&days=all");
     assert_eq!(claude["summary"]["commits_ai_coauthored"], 1);
     assert_eq!(claude["summary"]["shared_additions"], 10);
+    // Point releases group under the major version; the exact versions are listed.
+    assert_eq!(claude["models"][0]["key"], "claude:opus 4");
+    assert_eq!(claude["models"][0]["model"], "Opus 4");
+    assert_eq!(claude["models"][0]["versions"], serde_json::json!(["4.5"]));
 }
 
 #[test]

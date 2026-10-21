@@ -487,9 +487,18 @@ function aiModelShare(models) {
 function aiContributorDetailPage(data) {
   const identity = data.identity || {};
   const heading = identity.provider || identity.name || "AI provider";
+  const models = data.models || [];
+  // Point releases are grouped under the major version; list the exact versions seen.
+  const tracked = models
+    .map((model) => {
+      const versions = model.versions || [];
+      const label = model.model || model.name || model.provider;
+      return versions.length ? `${label} (${versions.join(", ")})` : label;
+    })
+    .join(", ");
   return (
     pageHead(heading, "AI provider activity aggregated across its recognized models") +
-    `<section class="panel page-section"><div class="page-copy"><strong>Provider:</strong> ${escapeHtml(identity.provider || "Other")}<br><strong>Models tracked:</strong> ${number.format((data.models || []).length)}</div></section>` +
+    `<section class="panel page-section"><div class="page-copy"><strong>Provider:</strong> ${escapeHtml(identity.provider || "Other")}<br><strong>Models tracked:</strong> ${number.format(models.length)}${tracked ? ` · ${escapeHtml(tracked)}` : ""}</div></section>` +
     contributorFilters(data) +
     stats(data.summary || {}, [
       ["Commits with AI", "commits_with_ai"],

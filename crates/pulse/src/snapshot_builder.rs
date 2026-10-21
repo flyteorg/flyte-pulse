@@ -95,8 +95,13 @@ impl<'a> Interner<'a> {
             return index;
         }
         let identity = ai_model_identity(name);
-        let identity =
-            AiIdentity { key: identity.key, provider: identity.provider, model: identity.model, name: identity.name };
+        let identity = AiIdentity {
+            key: identity.key,
+            provider: identity.provider,
+            model: identity.model,
+            name: identity.name,
+            version: identity.version,
+        };
         let index = match self.identity_index.get(&identity) {
             Some(&index) => index,
             None => {
