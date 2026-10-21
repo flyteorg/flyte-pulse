@@ -129,7 +129,10 @@ python3 -m http.server -d dist 8000   # http://localhost:8000
 that toolchain with the `wasm32-unknown-unknown` target on first use.
 `scripts/build-site.sh` also needs `wasm-bindgen-cli` matching the `wasm-bindgen`
 version in `Cargo.lock` (for example `cargo install wasm-bindgen-cli --version
-0.2.129 --locked`); `wasm-opt` (binaryen) is used when present.
+0.2.129 --locked`); `wasm-opt` (binaryen) is used when present. Use a recent binaryen
+(CI pins release 133): older ones, such as Ubuntu's 108, produce a module that fails to
+start. Each build ends with a Node smoke test (`scripts/smoke-site.mjs`) that starts the
+module, loads the snapshot, and answers a query.
 
 The views are plain ES modules with no runtime dependencies. ESLint checks the
 JavaScript and Prettier the JavaScript, HTML, and CSS: `npm ci`, then
