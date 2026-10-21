@@ -464,7 +464,12 @@ affiliations:
 - username: shayansadeghieh
   company_id: stripe
 - username: SiddhantSadangi
+  company_id: neptune-ai
+  valid_from: '2024-08-21'
+  valid_until: '2024-08-22'
+- username: SiddhantSadangi
   company_id: openai
+  valid_from: '2026-04-14'
 - username: sighingnow
   company_id: alibaba
 - username: SKalt
