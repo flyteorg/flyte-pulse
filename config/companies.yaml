@@ -547,6 +547,11 @@ companies:
   website_url: https://odyssey.ml
   aliases:
   - '@odysseyml'
+- id: openai
+  canonical_name: 'OpenAI'
+  website_url: https://openai.com/
+  aliases:
+  - '@openai'
 - id: opta
   canonical_name: Opta
   website_url: https://docs.opta.dev/
