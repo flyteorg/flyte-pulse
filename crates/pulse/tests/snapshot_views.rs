@@ -6,7 +6,7 @@ use pulse::companies::load_company_catalog;
 use pulse::snapshot_builder::build_snapshot;
 use pulse_core::snapshot::Snapshot;
 use pulse_core::state::{
-    Commit, Contributor, Language, PullRequest, PullRequestCommit, Repository, State, TargetBranch,
+    Commit, Contributor, Language, PullRequest, PullRequestCommit, PullRequestReview, Repository, State, TargetBranch,
 };
 use pulse_core::time::{Ts, day_of, parse_timestamp};
 use pulse_core::views::Dataset;
@@ -115,6 +115,25 @@ fn state() -> State {
     };
     state.pull_request_commits =
         vec![link("github.com:R1", "100", 'a'), link("github.com:R1", "101", 'b'), link("github.com:R2", "200", 'c')];
+    let review = |repo: &str, pr: &str, id: &str, reviewer: &str, at: &str| PullRequestReview {
+        repository_id: repo.into(),
+        pull_request_id: pr.into(),
+        provider_id: id.into(),
+        reviewer_contributor_id: reviewer.into(),
+        state: "COMMENTED".into(),
+        submitted_at: ts(at),
+    };
+    state.pull_request_reviews = vec![
+        // PR 1 (opened 10:00, merged the next day): bob's first review six hours later
+        // counts once; the author's own reply and the bot's review do not count.
+        review("github.com:R1", "100", "1", "github:3", "2026-10-01T11:00:00Z"),
+        review("github.com:R1", "100", "2", "github:1", "2026-10-01T12:00:00Z"),
+        review("github.com:R1", "100", "3", "github:2", "2026-10-01T16:00:00Z"),
+        review("github.com:R1", "100", "4", "github:2", "2026-10-01T18:00:00Z"),
+        // Alice reviews an open PR and the bot's PR; neither counts toward coverage.
+        review("github.com:R1", "101", "5", "github:1", "2026-10-03T12:00:00Z"),
+        review("github.com:R2", "200", "6", "github:1", "2026-10-05T09:00:00Z"),
+    ];
     state
 }
 
@@ -189,6 +208,46 @@ fn language_breakdowns() {
     // Contributors get the languages of the repositories they committed to.
     let alice = get(&data, "/api/users/github%3A1?days=all");
     assert_eq!(names(&alice)[0].0, "Go");
+}
+
+#[test]
+fn review_metrics() {
+    let data = dataset();
+    let overview = get(&data, "/api/dashboard?days=30");
+    let summary = &overview["summary"];
+    assert_eq!(summary["reviews"], 3, "one per reviewer and pull request");
+    assert_eq!(summary["active_reviewers"], 2);
+    assert_eq!(summary["merged_pull_requests_reviewed"], 1);
+    assert_eq!(summary["merged_pull_requests_for_coverage"], 1);
+    assert_eq!(summary["review_coverage"], 1.0, "the bot's merged PR is not counted");
+    assert_eq!(summary["median_hours_to_first_review"], 6.0);
+    assert_eq!(summary["active_human_contributors"], 2, "reviewing alone does not make anyone active");
+    let reviewers: Vec<(&str, i64)> = overview["top_reviewers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| (r["login"].as_str().unwrap(), r["reviews"].as_i64().unwrap()))
+        .collect();
+    assert_eq!(reviewers, [("alice", 2), ("bob", 1)]);
+
+    let repo = get(&data, "/api/repositories/github.com%3AR1?days=365&target_branch=main");
+    assert_eq!(repo["summary"]["reviews"], 1);
+    assert_eq!(repo["top_reviewers"][0]["login"], "bob");
+    let master = get(&data, "/api/repositories/github.com%3AR1?days=365&target_branch=master");
+    assert_eq!(master["summary"]["review_coverage"], Value::Null, "no merged PRs");
+    assert_eq!(master["summary"]["median_hours_to_first_review"], Value::Null);
+
+    let alice = get(&data, "/api/users/github%3A1?days=all");
+    assert_eq!(alice["summary"]["reviews"], 2);
+    let flytekit = alice["repository_activity"].as_array().unwrap().iter().find(|r| r["name"] == "flyteorg/flytekit");
+    assert_eq!(flytekit.unwrap()["reviews"], 1, "repositories she only reviewed are listed");
+
+    let companies = get(&data, "/api/companies?days=all");
+    let reviews = |id: &str| {
+        companies["companies"].as_array().unwrap().iter().find(|c| c["id"] == id).unwrap()["reviews"].clone()
+    };
+    assert_eq!(reviews("union"), 2);
+    assert_eq!(reviews("independent"), 1);
 }
 
 #[test]

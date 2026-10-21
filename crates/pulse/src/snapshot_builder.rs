@@ -280,6 +280,7 @@ pub fn build_snapshot(state: &State, companies: &CompanyCatalog, generated_at: i
             state: pr.state.clone(),
             created_at: pr.created_at.map(|t| t.0),
             merged_at: pr.merged_at.map(|t| t.0),
+            first_review_at: facts.reviewers(pr).into_values().min().map(|t| t.0),
             branch: interner.branch(&pr.target_branch),
             additions: pr.additions,
             deletions: pr.deletions,

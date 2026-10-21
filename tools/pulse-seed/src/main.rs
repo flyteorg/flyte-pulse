@@ -56,6 +56,8 @@ fn main() -> Result<()> {
             repository_id: watermark["repositoryId"].as_str().unwrap_or_default().to_string(),
             pr_cursor: watermark["cursor"].as_str().and_then(parse_timestamp).map(Ts),
             git_cursor: None,
+            // The dataset has no reviews; the first sync collects them with a full PR rescan.
+            pr_fields_version: 0,
         });
     }
 

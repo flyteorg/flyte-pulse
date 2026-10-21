@@ -1,9 +1,27 @@
 import { getJson, snapshotMeta } from "./api.js";
-import { NEUTRAL_CHART_COLOR, chartColor, formatStamp, languagePanel } from "./common.js";
+import {
+  NEUTRAL_CHART_COLOR,
+  chartColor,
+  formatStamp,
+  languagePanel,
+  reviewPanel,
+} from "./common.js";
 import { PulseLoading } from "./loading.js";
 import { currentRoute, replaceParams } from "./route.js";
 
 const number = new Intl.NumberFormat();
+
+const contributorHeadings = {
+  HUMAN: "Top human contributors",
+  NEW: "New contributors",
+  AI: "Top AI contributors",
+  REVIEWERS: "Top reviewers",
+};
+const companyPieLabels = {
+  pull_requests_merged: ["PR credits", "Shared merged PR credits by company"],
+  commits: ["commit credits", "Shared commit credits by company"],
+  reviews: ["review credits", "Pull request review credits by company"],
+};
 
 // Render the overview into `root` and return a cleanup function for navigation away.
 export function mountOverview(root) {
@@ -94,9 +112,8 @@ export function mountOverview(root) {
   function renderContributors(data) {
     const isAI = contributorKind === "AI";
     const isNew = contributorKind === "NEW";
-    $("contributors-heading").textContent = isNew
-      ? "New contributors"
-      : `Top ${isAI ? "AI" : "human"} contributors`;
+    const isReviewers = contributorKind === "REVIEWERS";
+    $("contributors-heading").textContent = contributorHeadings[contributorKind];
     $("contributors-search-label").textContent = isAI
       ? "Search by model name"
       : "Search by username or name";
@@ -105,7 +122,9 @@ export function mountOverview(root) {
       ? "AI line changes are shared across each recognized AI identity"
       : isNew
         ? "First recorded contribution in the selected range and repository, newest first"
-        : "Line changes are shared across the PR author and recognized co-authors";
+        : isReviewers
+          ? "Pull requests reviewed in the selected range; each reviewer counts once per pull request"
+          : "Line changes are shared across the PR author and recognized co-authors";
     document.querySelectorAll("[data-contributor-kind]").forEach((button) => {
       button.setAttribute(
         "aria-pressed",
@@ -125,7 +144,13 @@ export function mountOverview(root) {
     PulseLoading.region($("contributors-content"), false);
     const allRows =
       data[
-        isAI ? "ai_top_contributors" : isNew ? "new_top_contributors" : "human_top_contributors"
+        isAI
+          ? "ai_top_contributors"
+          : isNew
+            ? "new_top_contributors"
+            : isReviewers
+              ? "top_reviewers"
+              : "human_top_contributors"
       ] || [];
     const query = contributorSearchQuery.trim().toLocaleLowerCase();
     const matchingRows = query
@@ -140,10 +165,12 @@ export function mountOverview(root) {
       ? "No recognized AI attribution in this range."
       : isNew
         ? "No new contributors in this range."
-        : "No human contributor activity in this range.";
+        : isReviewers
+          ? "No reviews in this range."
+          : "No human contributor activity in this range.";
     if (query) {
       $("contributors-empty").textContent =
-        `No ${isAI ? "AI identities" : "human contributors"} match “${contributorSearchQuery.trim()}”.`;
+        `No ${isAI ? "AI identities" : isReviewers ? "reviewers" : "human contributors"} match “${contributorSearchQuery.trim()}”.`;
     }
     const searchStatus = $("contributors-search-status");
     if (query) {
@@ -155,7 +182,7 @@ export function mountOverview(root) {
       searchStatus.textContent =
         allRows.length > rows.length
           ? `Showing the top ${number.format(rows.length)} of ${number.format(allRows.length)}`
-          : `${number.format(allRows.length)} contributor${allRows.length === 1 ? "" : "s"}`;
+          : `${number.format(allRows.length)} ${isReviewers ? "reviewer" : "contributor"}${allRows.length === 1 ? "" : "s"}`;
     }
     const labels = isAI
       ? [
@@ -168,15 +195,17 @@ export function mountOverview(root) {
           "Lines added",
           "Lines removed",
         ]
-      : [
-          "Contributor",
-          ...(isNew ? ["First recorded"] : []),
-          "Merged",
-          "Commits",
-          "Opened",
-          "Lines added",
-          "Lines removed",
-        ];
+      : isReviewers
+        ? ["Reviewer", "PRs reviewed", "Merged", "Commits"]
+        : [
+            "Contributor",
+            ...(isNew ? ["First recorded"] : []),
+            "Merged",
+            "Commits",
+            "Opened",
+            "Lines added",
+            "Lines removed",
+          ];
     const header = $("contributors-columns");
     header.replaceChildren(
       ...labels.map((label, index) => {
@@ -209,19 +238,30 @@ export function mountOverview(root) {
           { key: "shared_additions", className: "num", format: number.format },
           { key: "shared_deletions", className: "num", format: number.format },
         ]
-      : [
-          {
-            key: "name",
-            className: "name",
-            href: (_, row) => `#/users/${encodeURIComponent(row.id)}`,
-          },
-          ...(isNew ? [{ key: "first_contribution_date" }] : []),
-          { key: "pull_requests_merged", className: "num", format: number.format },
-          { key: "commits", className: "num", format: number.format },
-          { key: "pull_requests_opened", className: "num", format: number.format },
-          { key: "shared_additions", className: "num", format: number.format },
-          { key: "shared_deletions", className: "num", format: number.format },
-        ];
+      : isReviewers
+        ? [
+            {
+              key: "name",
+              className: "name",
+              href: (_, row) => `#/users/${encodeURIComponent(row.id)}`,
+            },
+            { key: "reviews", className: "num", format: number.format },
+            { key: "pull_requests_merged", className: "num", format: number.format },
+            { key: "commits", className: "num", format: number.format },
+          ]
+        : [
+            {
+              key: "name",
+              className: "name",
+              href: (_, row) => `#/users/${encodeURIComponent(row.id)}`,
+            },
+            ...(isNew ? [{ key: "first_contribution_date" }] : []),
+            { key: "pull_requests_merged", className: "num", format: number.format },
+            { key: "commits", className: "num", format: number.format },
+            { key: "pull_requests_opened", className: "num", format: number.format },
+            { key: "shared_additions", className: "num", format: number.format },
+            { key: "shared_deletions", className: "num", format: number.format },
+          ];
     renderTable("contributors-table", "contributors-empty", rows, columns);
   }
   async function loadAIContributors(data) {
@@ -338,7 +378,7 @@ export function mountOverview(root) {
       "company",
       rows,
       companyPieMetric,
-      companyPieMetric === "commits" ? "commit credits" : "PR credits",
+      companyPieLabels[companyPieMetric][0],
       (company) => `#/companies/${encodeURIComponent(company.id)}?${data.company_params}`,
     );
   }
@@ -492,6 +532,10 @@ export function mountOverview(root) {
         PulseLoading.region($(id), false);
       drawChart(data.daily);
       drawRepositoryPie(data.repository_activity);
+      $("reviews-content").innerHTML = reviewPanel(
+        s,
+        "Merged pull requests in the selected range and repositories",
+      );
       $("languages-content").innerHTML = languagePanel(
         "Languages",
         data.languages,
@@ -556,10 +600,7 @@ export function mountOverview(root) {
   document.querySelectorAll("[data-contributor-kind]").forEach((button) =>
     button.addEventListener("click", () => {
       contributorKind = button.dataset.contributorKind;
-      $("contributors-heading").textContent =
-        contributorKind === "NEW"
-          ? "New contributors"
-          : `Top ${contributorKind === "AI" ? "AI" : "human"} contributors`;
+      $("contributors-heading").textContent = contributorHeadings[contributorKind];
       document
         .querySelectorAll("[data-contributor-kind]")
         .forEach((option) => option.setAttribute("aria-pressed", String(option === button)));
@@ -588,10 +629,7 @@ export function mountOverview(root) {
       document
         .querySelectorAll("[data-company-pie-metric]")
         .forEach((option) => option.setAttribute("aria-pressed", String(option === button)));
-      $("company-pie-subtitle").textContent =
-        companyPieMetric === "commits"
-          ? "Shared commit credits by company"
-          : "Shared merged PR credits by company";
+      $("company-pie-subtitle").textContent = companyPieLabels[companyPieMetric][1];
       if (currentData) drawCompanyPie(currentData);
     }),
   );

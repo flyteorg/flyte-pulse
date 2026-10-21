@@ -32,6 +32,20 @@ impl std::fmt::Display for WaitBudgetExhausted {
 
 impl std::error::Error for WaitBudgetExhausted {}
 
+/// Fields of a submitted review, shared by the pull request and review queries.
+/// Pending reviews are visible only to their author and are never requested.
+macro_rules! reviews {
+    ($arguments:literal) => {
+        concat!(
+            "reviews(",
+            $arguments,
+            ",states:[APPROVED,CHANGES_REQUESTED,COMMENTED,DISMISSED]){pageInfo{hasNextPage endCursor} \
+             nodes{fullDatabaseId databaseId state submittedAt \
+             author{__typename login url ... on User{databaseId name company} ... on Bot{databaseId}}}}"
+        )
+    };
+}
+
 /// Commit SHA to its (author, committer) GitHub accounts.
 pub type CommitAccounts = HashMap<String, (Option<Account>, Option<Account>)>;
 
@@ -59,6 +73,8 @@ pub struct GitHub {
     token: String,
     pub requests: u64,
     pub points: u64,
+    /// Requests that failed with a server error or timeout before a retry succeeded.
+    pub server_errors: u64,
     pub remaining: Option<i64>,
     reset_at: Option<i64>,
     waited: Duration,
@@ -86,6 +102,7 @@ impl GitHub {
             token,
             requests: 0,
             points: 0,
+            server_errors: 0,
             remaining: None,
             reset_at: None,
             waited: Duration::ZERO,
@@ -157,6 +174,7 @@ impl GitHub {
                 }
             }
             if matches!(status, 500 | 502 | 503 | 504) {
+                self.server_errors += 1;
                 if transient >= MAX_TRANSIENT_RETRIES {
                     bail!("GitHub GraphQL returned HTTP {status} after {transient} retries");
                 }
@@ -183,6 +201,7 @@ impl GitHub {
                 if (message.contains("something went wrong") || message.contains("timeout"))
                     && transient < MAX_TRANSIENT_RETRIES
                 {
+                    self.server_errors += 1;
                     transient += 1;
                     self.wait(Duration::from_secs(2u64.pow(transient)), "GraphQL timeout")?;
                     continue;
@@ -237,7 +256,8 @@ impl GitHub {
         after: Option<&str>,
         first: usize,
     ) -> Result<PullRequestPage> {
-        const QUERY: &str = r#"
+        const QUERY: &str = concat!(
+            r#"
 query($owner:String!,$name:String!,$base:String!,$after:String,$first:Int!){
   rateLimit{cost remaining resetAt}
   repository(owner:$owner,name:$name){
@@ -249,10 +269,15 @@ query($owner:String!,$name:String!,$base:String!,$after:String,$first:Int!){
         baseRefName headRefOid mergeCommit{oid}
         additions deletions commits{totalCount}
         author{__typename login url ... on User{databaseId name company} ... on Bot{databaseId}}
+        "#,
+            // Longer review lists continue with `review_page`.
+            reviews!("first:50"),
+            r#"
       }
     }
   }
-}"#;
+}"#
+        );
         let response =
             self.query(QUERY, json!({ "owner": owner, "name": name, "base": base, "after": after, "first": first }))?;
         response.check(false)?;
@@ -261,6 +286,24 @@ query($owner:String!,$name:String!,$base:String!,$after:String,$first:Int!){
             bail!("repository {owner}/{name} was not found");
         }
         serde_json::from_value(connection.clone()).context("unexpected pull request payload")
+    }
+
+    /// Reviews of one pull request after `after`, for review lists longer than the
+    /// pull request query reads.
+    pub fn review_page(&mut self, owner: &str, name: &str, number: u64, after: &str) -> Result<Reviews> {
+        const QUERY: &str = concat!(
+            "query($owner:String!,$name:String!,$number:Int!,$after:String){rateLimit{cost remaining resetAt} \
+             repository(owner:$owner,name:$name){pullRequest(number:$number){",
+            reviews!("first:100,after:$after"),
+            "}}}"
+        );
+        let response = self.query(QUERY, json!({ "owner": owner, "name": name, "number": number, "after": after }))?;
+        response.check(false)?;
+        let connection = &response.data["repository"]["pullRequest"]["reviews"];
+        if connection.is_null() {
+            bail!("pull request {owner}/{name}#{number} was not found");
+        }
+        serde_json::from_value(connection.clone()).context("unexpected review payload")
     }
 
     /// Commit author/committer accounts, keyed by commit SHA.
@@ -413,28 +456,61 @@ pub struct PullRequestNode {
     pub deletions: Option<i64>,
     pub commits: Option<TotalCount>,
     pub author: Option<Actor>,
+    pub reviews: Option<Reviews>,
 }
 
 impl PullRequestNode {
     pub fn provider_id(&self) -> String {
-        match &self.full_database_id {
-            Some(Value::String(id)) if !id.is_empty() => id.clone(),
-            Some(Value::Number(id)) => id.to_string(),
-            _ => self.database_id.map(|id| id.to_string()).unwrap_or_default(),
-        }
+        database_id(&self.full_database_id, self.database_id)
     }
 
     pub fn author_account(&self) -> Option<Account> {
-        let author = self.author.as_ref()?;
-        Some(Account {
-            database_id: author.database_id?,
-            login: author.login.clone(),
-            account_type: author.typename.clone(),
-            name: author.name.clone(),
-            company: author.company.clone(),
-            url: author.url.clone(),
-            organizations: None,
-        })
+        self.author.as_ref()?.account()
+    }
+
+    /// Submitted reviews read so far, oldest first.
+    pub fn reviews(&self) -> impl Iterator<Item = &ReviewNode> {
+        self.reviews.iter().flat_map(|r| r.nodes.iter().flatten()).filter(|r| r.state != "PENDING")
+    }
+
+    /// The cursor to read more reviews from, when GitHub has more than were read.
+    pub fn more_reviews(&self) -> Option<&str> {
+        let reviews = self.reviews.as_ref()?;
+        if reviews.page_info.has_next_page { reviews.page_info.end_cursor.as_deref() } else { None }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Reviews {
+    pub page_info: PageInfo,
+    #[serde(default)]
+    pub nodes: Vec<Option<ReviewNode>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewNode {
+    /// GraphQL BigInt, serialized as a string.
+    pub full_database_id: Option<Value>,
+    pub database_id: Option<i64>,
+    #[serde(default)]
+    pub state: String,
+    pub submitted_at: Option<String>,
+    pub author: Option<Actor>,
+}
+
+impl ReviewNode {
+    pub fn provider_id(&self) -> String {
+        database_id(&self.full_database_id, self.database_id)
+    }
+}
+
+fn database_id(full: &Option<Value>, short: Option<i64>) -> String {
+    match full {
+        Some(Value::String(id)) if !id.is_empty() => id.clone(),
+        Some(Value::Number(id)) => id.to_string(),
+        _ => short.map(|id| id.to_string()).unwrap_or_default(),
     }
 }
 
@@ -460,6 +536,20 @@ pub struct Actor {
     pub database_id: Option<i64>,
     pub name: Option<String>,
     pub company: Option<String>,
+}
+
+impl Actor {
+    pub fn account(&self) -> Option<Account> {
+        Some(Account {
+            database_id: self.database_id?,
+            login: self.login.clone(),
+            account_type: self.typename.clone(),
+            name: self.name.clone(),
+            company: self.company.clone(),
+            url: self.url.clone(),
+            organizations: None,
+        })
+    }
 }
 
 fn parse_languages(connection: &Value) -> Vec<Language> {
@@ -511,6 +601,34 @@ mod tests {
         let author = node.author_account().unwrap();
         assert_eq!(author.contributor_id(), "github:49699333");
         assert_eq!(author.account_type, "Bot");
+        assert_eq!(node.reviews().count(), 0);
+        assert!(node.more_reviews().is_none());
+    }
+
+    #[test]
+    fn pull_request_reviews() {
+        let node: PullRequestNode = serde_json::from_value(json!({
+            "fullDatabaseId": "1", "number": 8, "title": "Add", "state": "OPEN",
+            "reviews": {
+                "pageInfo": {"hasNextPage": true, "endCursor": "Y3Vyc29y"},
+                "nodes": [
+                    {"fullDatabaseId": "3001", "databaseId": 3001, "state": "APPROVED", "submittedAt": "2026-01-02T00:00:00Z",
+                     "author": {"__typename": "User", "login": "alice", "url": "https://github.com/alice", "databaseId": 11, "name": "Alice", "company": null}},
+                    {"fullDatabaseId": null, "databaseId": 3002, "state": "PENDING", "submittedAt": null,
+                     "author": {"__typename": "User", "login": "bob", "databaseId": 12}},
+                    {"fullDatabaseId": "3003", "state": "COMMENTED", "submittedAt": "2026-01-03T00:00:00Z", "author": null},
+                    null
+                ]
+            }
+        }))
+        .unwrap();
+        let reviews: Vec<&ReviewNode> = node.reviews().collect();
+        assert_eq!(reviews.len(), 2, "pending reviews are skipped");
+        assert_eq!(reviews[0].provider_id(), "3001");
+        assert_eq!(reviews[0].author.as_ref().and_then(Actor::account).unwrap().contributor_id(), "github:11");
+        assert!(reviews[1].author.is_none(), "deleted accounts have no author");
+        assert_eq!(node.more_reviews(), Some("Y3Vyc29y"));
+        assert!(reviews!("first:50").starts_with("reviews(first:50,states:[APPROVED,"));
     }
 
     #[test]

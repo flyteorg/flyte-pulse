@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 
 use super::languages::{by_size, language_rows};
 use super::{Dataset, Ordered, Totals, View, date_str, day_of, days_value, fold, in_range, iso};
-use crate::snapshot::{MetricKind, NONE};
+use crate::snapshot::{MetricKind, NONE, Pr};
 
 /// Which metric rows make up the "snapshot" a query sees. Repository pages use
 /// their repository's (and branch's) rows only, which also bound "all" dates.
@@ -64,6 +64,39 @@ impl Dataset {
             Some((branch, label)) => format!("{name} · {}", if label.is_empty() { branch } else { label }),
             None => name,
         }
+    }
+
+    /// Merged pull requests in range that `include` selects (bot-authored ones are not
+    /// counted), how many had a review by someone other than the author before they
+    /// merged, and the median hours from opening to that first review.
+    pub(crate) fn review_coverage(
+        &self,
+        include: impl Fn(&Pr) -> bool,
+        start: i32,
+        end: i32,
+    ) -> (i64, i64, Option<f64>) {
+        let (mut merged, mut hours) = (0, Vec::new());
+        for pr in &self.snapshot.pull_requests {
+            let Some(merged_at) = pr.merged_at else { continue };
+            if !in_range(day_of(Some(merged_at)), Some(start), Some(end))
+                || self.kind(pr.author).eq_ignore_ascii_case("BOT")
+                || !include(pr)
+            {
+                continue;
+            }
+            merged += 1;
+            if let Some(reviewed_at) = pr.first_review_at.filter(|&at| at <= merged_at) {
+                let opened = pr.created_at.unwrap_or(reviewed_at);
+                hours.push((reviewed_at - opened).max(0) as f64 / 3600.0);
+            }
+        }
+        hours.sort_by(f64::total_cmp);
+        let median = match hours.len() {
+            0 => None,
+            n if n % 2 == 1 => Some(hours[n / 2]),
+            n => Some((hours[n / 2 - 1] + hours[n / 2]) / 2.0),
+        };
+        (merged, hours.len() as i64, median.map(|h| (h * 10.0).round() / 10.0))
     }
 
     pub(crate) fn pull_request_view(&self, index: u32) -> Value {
@@ -179,6 +212,7 @@ impl View<'_> {
         let mut totals = Totals::default();
         let mut daily: HashMap<i32, Totals> = HashMap::new();
         let mut contributor_totals: Ordered<u32, Totals> = Ordered::new();
+        let mut reviewer_totals: Ordered<u32, i64> = Ordered::new();
         let mut repository_totals: Ordered<u32, Totals> = Ordered::new();
         let mut branch_totals: HashMap<(u32, u32), Totals> = HashMap::new();
         for &index in &scoped {
@@ -197,6 +231,13 @@ impl View<'_> {
                 continue;
             }
             totals.add(row.kind, row.value);
+            // Reviewing is credited separately; it does not make anyone an active contributor.
+            if row.kind == MetricKind::Reviews {
+                if data.is_human(row.key) {
+                    *reviewer_totals.entry(row.key) += row.value;
+                }
+                continue;
+            }
             daily.entry(row.date).or_default().add(row.kind, row.value);
             // AI attribution keys (`ai-model:`, `ai-provider:`) carry shared diff metrics
             // for the AI views; they are not contributors.
@@ -288,13 +329,29 @@ impl View<'_> {
         }
         sort_by_score(&mut repository_activity, |v| int(v, "pull_requests_merged") + int(v, "commits"));
 
-        // Code size by language for the repositories in view.
-        let language_repos: Vec<u32> = match (scope, repo_filter) {
+        let mut reviewers: Vec<Value> = reviewer_totals
+            .entries
+            .iter()
+            .map(|(key, reviews)| {
+                let mut row = contributor_row(self, *key, &contributor_totals.get(key).copied().unwrap_or_default());
+                row["reviews"] = json!(reviews);
+                row
+            })
+            .collect();
+        sort_by_score(&mut reviewers, |v| int(v, "reviews"));
+
+        let repos_in_view: Vec<u32> = match (scope, repo_filter) {
             (_, Some(Some(repo))) | (Scope::Repo(repo) | Scope::RepoBranch(repo, _), None) => vec![repo],
             (Scope::All, None) => (0..data.snapshot.repositories.len() as u32).collect(),
             (_, Some(None)) => Vec::new(),
         };
-        let languages = language_rows(language_repos.iter().map(|&r| by_size(&data.repo(r).languages)));
+        let (merged, reviewed, median_hours) = data.review_coverage(
+            |pr| repos_in_view.contains(&pr.repo) && target.is_none_or(|t| pr.branch == t),
+            start,
+            end,
+        );
+        // Code size by language for the repositories in view.
+        let languages = language_rows(repos_in_view.iter().map(|&r| by_size(&data.repo(r).languages)));
 
         let mut repository_options: Vec<&crate::snapshot::Repo> = data.snapshot.repositories.iter().collect();
         repository_options.sort_by(|a, b| a.id.cmp(&b.id));
@@ -316,11 +373,18 @@ impl View<'_> {
                 "additions": totals.get(MetricKind::Additions),
                 "deletions": totals.get(MetricKind::Deletions),
                 "active_repositories": repository_totals.len(),
+                "reviews": totals.get(MetricKind::Reviews),
+                "active_reviewers": reviewer_totals.len(),
+                "merged_pull_requests_reviewed": reviewed,
+                "merged_pull_requests_for_coverage": merged,
+                "review_coverage": (merged > 0).then(|| (reviewed as f64 / merged as f64 * 10_000.0).round() / 10_000.0),
+                "median_hours_to_first_review": median_hours,
             },
             "daily": daily,
             "top_contributors": top.iter().take(12).map(|(_, v)| v.clone()).collect::<Vec<_>>(),
             "human_top_contributors": human_top.into_iter().map(|(_, v)| v).collect::<Vec<_>>(),
             "new_top_contributors": new_top.into_iter().map(|(_, v)| v).collect::<Vec<_>>(),
+            "top_reviewers": reviewers,
             "ai_top_contributors": [],
             "repository_activity": repository_activity,
             "languages": languages,
@@ -398,6 +462,7 @@ impl View<'_> {
             "summary": activity["summary"],
             "daily": activity["daily"],
             "top_contributors": activity["top_contributors"],
+            "top_reviewers": activity["top_reviewers"].as_array().map(|rows| rows.iter().take(12).cloned().collect::<Vec<_>>()),
             "languages": activity["languages"],
             "recent_pull_requests": recent,
         }))
