@@ -1,230 +1,190 @@
-# Flyte Pulse (WebAssembly)
+# Flyte Pulse
 
-Community activity across the Flyte repositories, served as a static GitHub Pages
-site. Rust collects the data in GitHub Actions and answers every dashboard query
-in the browser through WebAssembly; there is no database or API server.
+Community activity across the Flyte repositories: who contributes, from which
+companies, how code review is going, and how AI tools are used. It is rebuilt every
+day from public GitHub activity.
 
-Site: https://flyteorg.github.io/flyte-pulse/
+**Site:** https://flyteorg.github.io/flyte-pulse/
 
+## What the site shows
+
+- **Overview**: a leaderboard (top contributor, top community contributor, top new
+  contributor, top reviewer, most used AI model), totals for the selected time range
+  and repository, activity over time, ranked contributor lists, repository and company
+  shares, code review coverage, and the languages in use.
+- **Repositories**: every tracked repository and branch, with its activity, top
+  contributors and reviewers, companies, and recent pull requests.
+- **Contributors**: new and active contributors. Each person's page shows their
+  activity, company affiliations, reviews, AI usage, pull requests, and commits.
+- **Companies**: contributions credited to each company and the people affiliated
+  with it.
+- **AI Activity**: AI authorship and assistance found in commit trailers and AI
+  accounts.
+
+Every table sorts by any column, and filters and sort order are kept in the page
+address, so any view can be shared as a link.
+
+## How activity is counted
+
+- Only public GitHub activity is used, refreshed daily at 02:17 UTC. Commit author
+  and committer email addresses are stored only as truncated hashes and domains.
+  Commit messages are kept as written, so addresses in trailers such as
+  `Signed-off-by` remain in the collected data; the site shows only each message's
+  first line.
+- A commit counts when it is part of a pull request to a tracked branch. Direct
+  pushes and imported history are kept but not counted.
+- Bots are not counted: GitHub bot accounts, `[bot]` logins, and accounts listed as
+  bots in `config/repositories.yaml`.
+- A merged pull request's lines are shared by its author and its co-authors
+  (`Co-Authored-By`), so per-person line totals overlap.
+- A reviewer counts once per pull request, on the day of their first review.
+  Reviews of one's own pull requests and reviews by bots and AI accounts do not
+  count, and reviewing alone does not make someone an active or new contributor.
+  Review coverage is the share of merged pull requests that someone other than the
+  author reviewed before the merge; time to first review runs from opening,
+  including time as a draft.
+- A new contributor made their first recorded contribution in the selected range.
+- Each contribution is credited to the company the person was affiliated with on
+  that day, as recorded in `config/affiliations.yaml`. Without an affiliation it
+  counts as Independent.
+- Community activity is activity by people while they are not affiliated with a
+  company that maintains Flyte (Union).
+- AI attribution comes from AI accounts and from `Co-Authored-By` and `Assisted-By`
+  commit trailers that name a recognized AI tool.
+
+## Common tasks
+
+Everything below is a pull request that changes a file in `config/`. When it merges,
+the site rebuilds within minutes. Company and affiliation changes apply to all past
+activity; nothing needs to be collected again.
+
+### Track a new repository
+
+Add an entry to the end of `repositories:` in `config/repositories.yaml`:
+
+```yaml
+  - provider: GITHUB
+    host: github.com
+    owner: flyteorg
+    name: my-repo
+    module: sdk          # optional grouping label
+    status: ACTIVE
+    target_branches:     # branches whose pull requests count
+      - name: main
+        label: v2        # optional display name when several branches are tracked
 ```
-GitHub Actions (daily)                          GitHub Pages
-┌───────────────────────────────┐   pulse.bin.gz   ┌──────────────────────────────┐
-│ pulse sync                    │ ───────────────▶ │ index.html + JS views        │
-│   Git clones → commits, links │                  │ pulse_web.wasm (Rust)        │
-│   GitHub GraphQL → PRs, people│                  │   loads the snapshot, answers│
-│ pulse build → snapshot        │                  │   /api/... queries in-page   │
-└──────────────┬────────────────┘                  └──────────────────────────────┘
-               │ state
-               ├─▶ data branch: state/ (JSON lines, full history)
-               └─▶ release "pulse-state": pulse-state.json.gz (latest copy)
+
+The repository must be public. The next daily sync collects its full history, which
+includes all of its pull requests. To collect it sooner, run **Actions → Sync and
+deploy → Run workflow**. To stop collecting a repository but keep its data, set
+`status: INACTIVE`.
+
+### Add or fix a company affiliation
+
+The easiest way is for the person to set the **Company** field of their GitHub
+profile to the company's name or GitHub organization (such as `@unionai`). The
+discovery bot notices within about a week and proposes the affiliation in its pull
+request (see [below](#review-the-company-discovery-pull-request)).
+
+To set it directly, edit `config/affiliations.yaml`:
+
+```yaml
+# Works at the company; an entry without dates applies to all activity
+- username: octocat
+  company_id: union
+
+# Changed jobs: dated entries
+- username: octocat
+  company_id: lyft
+  valid_from: '2019-01-01'
+  valid_until: '2022-03-01'
+- username: octocat
+  company_id: union
+  valid_from: '2022-03-01'
+
+# Independent during a period
+- username: octocat
+  status: INDEPENDENT
+  valid_from: '2024-06-01'
 ```
 
-## Layout
+- An entry without `valid_from` covers every day that no dated entry covers.
+- `valid_from` is included and `valid_until` is not (UTC days). A person's dated
+  entries cannot overlap, and `valid_until` needs a `valid_from`.
+- `company_id` must exist in `config/companies.yaml` (see the next section).
+- Usernames ignore case. If a username is ambiguous or was renamed, use
+  `contributor_id: github:<numeric account ID>` instead.
+- Keep the file sorted by username (ignoring case), then by start date; CI checks
+  the order. With Rust installed, `cargo run -p pulse -- format-config` sorts it.
+- Put the evidence in the pull request description, such as a profile, a company
+  email domain in commits, or a public announcement.
+- If the person's GitHub profile names a different company, also add their username
+  under `ignore.users` in `config/discovery.yaml`, so the bot stops flagging the
+  difference.
 
-| Path | What it is |
+### Add a company
+
+Add an entry to `config/companies.yaml`, sorted by `id`:
+
+```yaml
+- id: example-inc                   # lowercase letters, digits, '-' or '_'
+  canonical_name: Example Inc.
+  website_url: https://example.com  # must be HTTPS
+  aliases:                          # GitHub profile Company values that mean this company
+  - '@example-org'                  # a GitHub organization, quoted because of the @
+  - Example, Inc.
+  domains:                          # optional: corporate commit email domains
+  - example.com
+```
+
+The canonical name also counts as an alias. An alias or a domain can belong to only
+one company. Use `aliases: []` when there are none. Set `maintainer: true` only for a
+company that maintains Flyte: its people's activity is not counted as community
+activity.
+
+### Mark an account as a bot, an AI, or a person
+
+Accounts are classified from GitHub's account type and their names. To override the
+classification, add a rule under `identity_rules` in `config/repositories.yaml`:
+
+```yaml
+identity_rules:
+  - provider: GITHUB
+    login: example-release-bot
+    kind: BOT            # HUMAN, BOT, AI, or UNKNOWN
+```
+
+### Review the company discovery pull request
+
+After each daily sync, the discovery bot opens or updates the **Company and
+affiliation updates** pull request (branch `bot/company-discovery`). It proposes new
+companies, aliases, and email domains, affiliations for people without one, and
+dated changes when someone moves. Each change lists its evidence: a profile company
+value, a public organization membership, or a corporate commit email domain.
+Anything ambiguous is listed under "Needs a person" and left unchanged.
+
+To review it:
+
+1. Check the evidence for each change. Fix anything wrong by editing the branch.
+   After someone else pushes, the bot stops updating the pull request until it is
+   merged or closed.
+2. Approve the held CI run ("Approve workflows to run"), which GitHub requires for
+   pushes made by workflows.
+3. Merge. Merging approves the changes.
+
+To stop the bot from proposing something again, add it to `config/discovery.yaml`:
+
+| List | For |
 |---|---|
-| `crates/pulse-core` | Data model, snapshot format, and every dashboard query. Compiles natively and to WebAssembly. |
-| `crates/pulse` | `pulse` CLI: `sync` (collector), `build` (snapshot), `convert` (state formats). |
-| `crates/pulse-web` | WebAssembly wrapper (`Pulse.load`, `pulse.request(url, today)`). |
-| `tools/pulse-seed` | One-time import of an existing raw Parquet dataset. Not built by default. |
-| `web/` | Single-page site: `index.html`, hash-routed JS views, CSS. Pages share the components in `web/js/components` (sortable tables, charts, filters). |
-| `config/` | Reviewed catalogs: `repositories.yaml`, `companies.yaml`, `affiliations.yaml`. |
-| `scripts/build-site.sh` | Builds the site into `dist/`: WebAssembly, web assets, and the data snapshot. |
-| `scripts/serve-local.sh` | Fetches the data branch's state, builds the site, and serves it locally. |
+| `profile_companies` | profile Company values that do not name an employer, such as "Student" |
+| `organizations` | GitHub organizations that say nothing about an employer |
+| `domains` | email domains that do not identify an employer |
+| `users` | people whose affiliations are maintained by hand only |
 
-## How the data is collected
+## Questions and development
 
-`pulse sync` updates the state for every `ACTIVE` repository in
-`config/repositories.yaml`:
-
-- **Commits come from Git, not the API.** The first sync of a repository (no Git
-  cursor yet, a reseed, or changed target branches) makes a full bare clone of the
-  target branches plus GitHub's `refs/pull/*/head` refs. Later syncs fetch with
-  `--shallow-since` from the last cursor (minus `--overlap-days`), plus the refs of
-  pull requests whose head changed. Commit details, line stats, and branch
-  membership are read from the clone, which is deleted afterwards.
-- **PR→commit links come from Git too:** `git rev-list <PR head> --not <target
-  branches>` (or `<head> --not <merge>^1` for merge commits). This matches GitHub's
-  PR commit lists without one API request per pull request. When a range reaches
-  the shallow boundary, the fetch is deepened and the range recomputed.
-- **The GraphQL API is used only for what Git cannot provide:** pull request
-  metadata with each PR's submitted reviews (about one point per 100 PRs; the first
-  50 reviews come with the PR, and a longer review list costs one more request per
-  100 reviews), batched lookups of commit emails without a known account, a 90-day
-  public profile refresh, and each repository's language breakdown (one point per
-  repository per sync). Emails are never stored; the state keeps a truncated SHA-256
-  per email.
-- When the collector starts reading a new pull request field (reviews were the
-  first), the next sync reads every pull request of each repository once more and
-  records that in the repository's watermark (`pr_fields_version`). It needs no new
-  clone: Git work stays what an incremental sync would do, so older pull requests
-  keep their saved commit links. For all tracked repositories this costs about 200
-  points; pages of old pull requests get smaller when GitHub starts timing out.
-- Identifiers are stable across syncs: repositories are `github.com:<node id>`,
-  people are `github:<account id>`, and pull requests use GitHub's numeric IDs.
-
-`pulse build` precomputes daily metrics, company credit, and AI attribution
-(Co-Authored-By / Assisted-By trailers, AI identities), and writes `pulse.bin.gz`
-(postcard, gzip) plus `meta.json`. The browser downloads the snapshot once; each
-page then asks the WebAssembly module for an HTTP-style URL such as
-`/api/dashboard?days=30` and renders the JSON it returns.
-
-Counting rules:
-
-- Commits count when they are listed on a tracked pull request. Git also returns
-  direct pushes and imported history; they stay in the state but are not counted.
-- Bot activity (GitHub bot accounts, `[bot]` logins, and `identity_rules` in
-  `repositories.yaml`, which classify `web-flow` as a bot) is kept but not counted.
-- Each merged PR's full line diff is shared by its author and recognized human or
-  AI co-authors; company credit uses the affiliation on each event's date.
-- A reviewer counts once per pull request, on the day of their first submitted
-  review (approval, requested changes, or comment). Reviews of one's own pull
-  request and reviews by bots and AI accounts are not counted, and reviewing alone
-  does not make someone an active or new contributor. Review coverage is the share
-  of merged pull requests (not bot-authored) with such a review before the merge;
-  time to first review runs from opening, including time as a draft, to that
-  review.
-- Community activity is human activity on days when the person's credited company
-  (the same dated affiliation as company credit) is not a maintainer, marked
-  `maintainer: true` in `companies.yaml` (Union). The overview's Community list and
-  "Top community contributor" highlight use it.
-- The site is public and has no login. It shows public GitHub activity and the
-  reviewed company mappings from `config/`.
-
-## State
-
-The collected state (repositories, contributors, pull requests and their reviews,
-commits, links, watermarks) has two interchangeable formats; `pulse` picks one from the path:
-
-- `*.json.gz` / `*.json`: one JSON document. Published as the `pulse-state.json.gz`
-  asset of the `pulse-state` release after every sync.
-- any other path: a directory of sorted JSON-lines files (`manifest.json`,
-  `repositories.jsonl`, `contributors.jsonl`, `email_identities.jsonl`, and
-  `pull_requests/`, `pull_request_reviews/`, `commits/`, `pull_request_commits/`
-  split per repository).
-  Committed to `state/` on the orphan `data` branch, so the history of every
-  sync is kept with small diffs.
-
-```sh
-pulse convert --from pulse-state.json.gz --to state   # file → directory
-pulse convert --from state --to pulse-state.json.gz   # directory → file
-```
-
-## Commands
-
-```sh
-cargo build --release -p pulse
-
-# Collect (token: PULSE_GITHUB_TOKEN, else GITHUB_TOKEN; read-only access to public repos)
-GITHUB_TOKEN=$(gh auth token) ./target/release/pulse sync --state state
-#   --only owner/name     restrict to repositories (repeatable)
-#   --reseed owner/name   discard a repository's data and collect it again
-#   --history-days N      PR history for repositories without a cursor (0 = all)
-
-# Build the site into dist/ and serve it
-scripts/build-site.sh state dist
-python3 -m http.server -d dist 8000   # http://localhost:8000
-
-# Or in one step, from the latest published state on the data branch
-scripts/serve-local.sh [PORT]   # http://127.0.0.1:8000; STATE=path builds from a local state
-```
-
-`rust-toolchain.toml` is the only place the Rust version is set; rustup installs
-that toolchain with the `wasm32-unknown-unknown` target on first use.
-`scripts/build-site.sh` also needs `wasm-bindgen-cli` matching the `wasm-bindgen`
-version in `Cargo.lock` (for example `cargo install wasm-bindgen-cli --version
-0.2.129 --locked`); `wasm-opt` (binaryen) is used when present. Use a recent binaryen
-(CI pins release 133): older ones, such as Ubuntu's 108, produce a module that fails to
-start. Each build ends with a Node smoke test (`scripts/smoke-site.mjs`) that starts the
-module, loads the snapshot, and answers a query.
-
-The views are plain ES modules with no runtime dependencies. ESLint checks the
-JavaScript and Prettier the JavaScript, HTML, and CSS: `npm ci`, then
-`npm run lint` and `npm run format:check` (`npm run format` fixes formatting).
-
-### Seeding (one time)
-
-The initial state was imported from an existing raw dataset (a directory with
-`manifest.json` and Parquet tables) instead of scanning all history through the API:
-
-```sh
-cargo run --release -p pulse-seed -- --raw-dir /path/to/raw-dataset --out seed.json.gz
-GITHUB_TOKEN=$(gh auth token) ./target/release/pulse sync --state seed.json.gz --out state
-```
-
-The dataset's cursors become PR scan cursors, so the first sync scans pull
-requests incrementally while making a full Git clone of every repository.
-
-## GitHub setup
-
-1. Push `main` and the `data` branch.
-2. Settings → Pages → Source: **GitHub Actions**.
-3. Optional: add a `PULSE_GITHUB_TOKEN` secret (a fine-grained token with public
-   read access) for a higher rate limit; the workflow's `GITHUB_TOKEN` is enough
-   for daily syncs.
-
-Workflows:
-
-- `sync.yml` runs daily at 02:17 UTC: sync, commit the state to `data`, replace
-  the release asset, build, and deploy Pages. Each run's summary page reports what
-  the sync collected (per repository, with API usage) and the published site data
-  (`pulse sync --summary-file`, `pulse summary`). Run it manually to reseed
-  repositories (`reseed: owner/name ...`) or to deploy without syncing. Pushes to
-  `main` that touch code, web, or config rebuild and deploy from the saved state.
-- `ci.yml` runs formatting, clippy, tests, the WebAssembly build, ESLint, and
-  Prettier with a read-only token.
-
-Actions are pinned by commit SHA; jobs get write access only where they need it.
-Dependabot opens one grouped pull request per week for each of Rust, JS, and
-GitHub Actions, proposing only releases that are at least 7 days old.
-
-To add a repository, add it to `config/repositories.yaml`; the next sync makes a
-full clone and collects all of its pull requests. Company and affiliation changes
-take effect on the next build; no resync is needed. Keep `companies.yaml` sorted by
-company ID and `affiliations.yaml` by username with `pulse format-config` (tests
-fail otherwise); comments inside an entry move with it.
-
-## Company and affiliation discovery
-
-After each sync, `pulse discover --apply` proposes updates to `companies.yaml` and
-`affiliations.yaml`, and `scripts/discovery-pr.sh` opens or updates the
-`bot/company-discovery` pull request with the evidence. Merging it approves the
-changes. The signals are:
-
-- public profile company values, refreshed weekly and kept as first-seen and
-  last-seen runs, so a change is dated within a week of happening;
-- public organization memberships, matched through `@org` company aliases;
-- corporate commit email domains read from Git (free-mail, noreply, placeholder,
-  and alumni domains are dropped; only the domain is stored, never the address),
-  matched through a company's `domains` or its website.
-
-From these it proposes email domains and organization aliases for known companies,
-new companies (from a single `@org` named in a profile, or an organization whose
-website is an email domain several people use), affiliations for contributors
-without one, affiliation changes (the old period ends when the new value was first
-seen), and earlier affiliations from a clean switch of email domains. The current
-affiliation then starts where the earlier one ends, including an existing undated
-entry. Entries are inserted in sorted order. Anything
-ambiguous, such as several companies in one profile or a conflict with a curated
-mapping, is listed for a person instead. Values in `config/discovery.yaml` are
-never proposed again.
-
-The `main` ruleset requests a Copilot review on every push, and the workflow posts
-an `@Copilot` comment asking it to verify company names and websites, that each
-account is a real person, and that the evidence supports each affiliation. Copilot
-acts on mentions from users with Copilot access, so set a `PULSE_COPILOT_TOKEN`
-secret (a user token) for that; without it the comment is posted once, when the pull
-request is opened. GitHub holds CI for pushes by the workflow, so approve the CI run
-on the pull request ("Approve workflows to run") after each update to get the
-required checks.
-Once someone else pushes to the branch, the workflow stops updating it until it is
-merged or closed. Run the workflow with `full_git` once to backfill email domains for
-history collected before this feature.
-
-New contributors with a login or commit email word ending in "bot" (`snyk-bot`,
-`goreleaserbot`) or a display name with the word "bot" or "robot" are classified as
-bots, unless they have a curated affiliation; existing accounts like that are listed
-for review. `identity_rules` always win.
+Open an issue or a pull request in this repository. To build the site locally or
+work on the code, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## License
 
