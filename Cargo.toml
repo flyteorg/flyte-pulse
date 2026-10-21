@@ -1,8 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/pulse-core", "crates/pulse", "crates/pulse-web", "tools/pulse-seed"]
-# The seed tool imports an existing Parquet dataset once; regular builds skip it.
-default-members = ["crates/pulse-core", "crates/pulse", "crates/pulse-web"]
+members = ["crates/pulse-core", "crates/pulse", "crates/pulse-web"]
 
 [workspace.package]
 version = "0.1.0"
@@ -21,7 +19,6 @@ clap = { version = "4.6.7", features = ["derive", "env"] }
 console_error_panic_hook = "0.1.7"
 flate2 = { version = "1.1.10", default-features = false, features = ["rust_backend"] }
 js-sys = "0.3.106"
-parquet = { version = "60.0.0", default-features = false, features = ["zstd", "snap"] }
 postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
 regex = "1.13.1"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }
