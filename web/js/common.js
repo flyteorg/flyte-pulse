@@ -20,7 +20,7 @@ export function pendingPanel(title, failed = false) {
   const body = failed
     ? '<div class="empty">This section could not be loaded.</div>'
     : `<div class="loading-state">${PulseLoading.indicator("Loading details…")}</div>`;
-  return `<section class="panel page-section" aria-busy="${!failed}"><h2>${escapeHtml(title)}</h2>${body}</section>`;
+  return panel({ title, body, attributes: `aria-busy="${!failed}"` });
 }
 
 export function escapeHtml(value) {
@@ -74,72 +74,41 @@ export function pageHead(title, description = "") {
   return `<header class="page-head"><h1>${escapeHtml(title)}</h1>${description ? `<p>${escapeHtml(description)}</p>` : ""}</header>`;
 }
 
-// `entries` are [label, key] or [label, key, format] for values that are not counts.
-export function stats(summary, entries, pending = false) {
-  return `<section class="cards" aria-label="Summary">${entries
-    .map(([label, key, format = number.format]) => {
+// A titled section. `subtitle` and `controls` (such as a toggle or legend) go in its head.
+export function panel({
+  title,
+  subtitle = "",
+  controls = "",
+  body,
+  className = "",
+  id = "",
+  attributes = "",
+}) {
+  const heading = escapeHtml(title);
+  const head =
+    subtitle || controls
+      ? `<div class="panel-head"><div><h2>${heading}</h2>${subtitle ? `<div class="subtitle">${escapeHtml(subtitle)}</div>` : ""}</div>${controls}</div>`
+      : `<h2>${heading}</h2>`;
+  const classes = `panel page-section${className ? ` ${className.trim()}` : ""}`;
+  return `<section class="${classes}"${id ? ` id="${id}"` : ""}${attributes ? ` ${attributes}` : ""}>${head}${body}</section>`;
+}
+
+// `entries` are [label, key, format?, { note?, href? }]; `format` is for values that are
+// not counts, `href` links the value. With `pending`, missing values show as loading.
+export function stats(summary, entries, { pending = false, className = "" } = {}) {
+  return `<section class="cards${className ? ` ${className}` : ""}" aria-label="Summary">${entries
+    .map(([label, key, format = number.format, { note = "", href = "" } = {}]) => {
       const loading = pending && summary[key] == null;
-      const value = loading
+      let value = loading
         ? PulseLoading.indicator("Loading…", true)
         : summary[key] == null
           ? "—"
           : escapeHtml(format(summary[key]));
-      return `<article class="card" aria-busy="${loading}"><div class="card-label">${escapeHtml(label)}</div><div class="card-value">${value}</div></article>`;
+      if (href && !loading)
+        value = `<a class="summary-link" href="${escapeHtml(href)}">${value}</a>`;
+      return `<article class="card" aria-busy="${loading}"><div class="card-label">${escapeHtml(label)}</div><div class="card-value">${value}</div>${note ? `<div class="card-note">${escapeHtml(note)}</div>` : ""}</article>`;
     })
     .join("")}</section>`;
-}
-
-export function activityPanel(points, options = {}) {
-  if (!points?.length) return "";
-  const firstKey = options.firstKey || "pull_requests_merged";
-  const secondKey = options.secondKey || "commits";
-  const firstLabel = options.firstLabel || "Merged PRs";
-  const secondLabel = options.secondLabel || "Commits";
-  const title = options.title || "Activity over time";
-  const subtitle = options.subtitle || "Daily merged PRs and commits, UTC";
-  const width = 760,
-    height = 220;
-  const pad = { left: 38, right: 38, top: 12, bottom: 28 };
-  const plotWidth = width - pad.left - pad.right;
-  const plotHeight = height - pad.top - pad.bottom;
-  const maxValue = Math.max(
-    1,
-    ...points.map((point) => Math.max(Number(point[secondKey]) || 0, Number(point[firstKey]) || 0)),
-  );
-  const scaleMax =
-    Math.ceil(maxValue / (maxValue < 10 ? 2 : maxValue < 40 ? 5 : 10)) *
-    (maxValue < 10 ? 2 : maxValue < 40 ? 5 : 10);
-  const x = (index) =>
-    pad.left + (points.length <= 1 ? plotWidth / 2 : (index * plotWidth) / (points.length - 1));
-  const y = (value) => pad.top + plotHeight - (value / scaleMax) * plotHeight;
-  const path = (key) =>
-    points
-      .map((point, index) => `${index ? "L" : "M"}${x(index)},${y(Number(point[key]) || 0)}`)
-      .join(" ");
-  const grid = Array.from({ length: 5 }, (_, index) => {
-    const value = Math.round((scaleMax * (4 - index)) / 4);
-    const lineY = pad.top + (plotHeight * index) / 4;
-    return `<line x1="${pad.left}" y1="${lineY}" x2="${width - pad.right}" y2="${lineY}" class="gridline"/><text x="${pad.left - 8}" y="${lineY + 3}" text-anchor="end" class="axis-label">${number.format(value)}</text>`;
-  }).join("");
-  const labelCount = Math.min(points.length, 7);
-  const labelIndices = new Set(
-    Array.from({ length: labelCount }, (_, index) =>
-      labelCount === 1 ? 0 : Math.round((index * (points.length - 1)) / (labelCount - 1)),
-    ),
-  );
-  const labels = points
-    .map((point, index) =>
-      labelIndices.has(index)
-        ? `<text x="${x(index)}" y="${height - 7}" text-anchor="middle" class="axis-label">${escapeHtml(String(point.date || ""))}</text>`
-        : "",
-    )
-    .join("");
-  return `<article class="panel page-section"><div class="panel-head"><div><h2>${escapeHtml(title)}</h2><div class="subtitle">${escapeHtml(subtitle)}</div></div><div class="legend"><span><i class="dot"></i>${escapeHtml(firstLabel)}</span><span><i class="dot orange"></i>${escapeHtml(secondLabel)}</span></div></div><svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(subtitle)}">${grid}<path d="${path(firstKey)}" class="series-a"/><path d="${path(secondKey)}" class="series-b"/>${labels}</svg></article>`;
-}
-
-export function table(headers, rows, emptyText = "No data available.") {
-  if (!rows.length) return `<div class="empty">${escapeHtml(emptyText)}</div>`;
-  return `<div class="table-wrap"><table><thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
 }
 
 export function repositoryLink(id, name, targetBranch = "") {
@@ -175,84 +144,6 @@ export function aiIdentityLinks(identities) {
   return identities.map((identity) => userLink(identity.id, identity.name)).join(", ");
 }
 
-// Chart colors are CSS variables (dashboard.css), so charts follow the light/dark theme.
-const CHART_COLOR_COUNT = 8;
-export const NEUTRAL_CHART_COLOR = "var(--chart-neutral)";
-
-export function chartColor(index) {
-  return `var(--chart-${(index % CHART_COLOR_COUNT) + 1})`;
-}
-
-export function contributionPie(
-  title,
-  rows,
-  metric,
-  { linkRepositories = true, linkCompanies = false, subtitle = "", controls = "" } = {},
-) {
-  const slices = rows
-    .map((row, index) => ({
-      ...row,
-      value: Number(row[metric]) || 0,
-      color: linkCompanies && row.id === "independent" ? NEUTRAL_CHART_COLOR : chartColor(index),
-    }))
-    .filter((row) => row.value > 0);
-  const total = slices.reduce((sum, row) => sum + row.value, 0);
-  const heading = `<div class="panel-head"><div><h2>${escapeHtml(title)}</h2><div class="subtitle">${number.format(total)} total · selected time range</div>${subtitle ? `<p class="page-copy">${escapeHtml(subtitle)}</p>` : ""}</div>${controls}</div>`;
-  if (!total) {
-    return `<article class="panel page-section">${heading}<div class="empty">No activity in this time range.</div></article>`;
-  }
-  const radius = 48;
-  const circumference = 2 * Math.PI * radius;
-  let offset = 0;
-  const circles = slices
-    .map((row) => {
-      const length = (row.value / total) * circumference;
-      const circle = `<circle cx="64" cy="64" r="${radius}" fill="none" style="stroke:${row.color}" stroke-width="24" stroke-dasharray="${length} ${circumference - length}" stroke-dashoffset="${-offset}" transform="rotate(-90 64 64)"><title>${escapeHtml(row.name)}: ${number.format(row.value)}</title></circle>`;
-      offset += length;
-      return circle;
-    })
-    .join("");
-  const legend = slices
-    .map((row) => {
-      const label = linkCompanies
-        ? companyLink(row.id, row.name, row.query)
-        : linkRepositories
-          ? repositoryLink(row.id, row.name, row.target_branch)
-          : escapeHtml(row.name);
-      return `<li><span class="pie-key" style="--pie-color:${row.color}"></span><span class="pie-project">${label}</span><span class="pie-value">${number.format(row.value)} · ${Math.round((row.value / total) * 100)}%</span></li>`;
-    })
-    .join("");
-  return `<article class="panel page-section project-pie-panel">
-    ${heading}
-    <div class="project-pie-content"><svg class="project-pie" width="112" height="112" style="width:112px;height:112px;max-width:112px;max-height:112px;display:block;flex:none" viewBox="0 0 128 128" role="img" aria-label="${escapeHtml(title)} breakdown">${circles}<text x="64" y="61" text-anchor="middle" class="pie-total">${number.format(total)}</text><text x="64" y="77" text-anchor="middle" class="pie-total-label">total</text></svg><ul class="pie-legend">${legend}</ul></div>
-  </article>`;
-}
-
-// A language breakdown as a stacked bar with a legend; `share` values are fractions.
-export function languagePanel(title, languages, subtitle) {
-  const rows = (languages || []).filter((row) => row.share > 0);
-  const heading = `<div class="panel-head"><div><h2>${escapeHtml(title)}</h2><div class="subtitle">${escapeHtml(subtitle)}</div></div></div>`;
-  if (!rows.length) {
-    return `<section class="panel page-section language-panel">${heading}<div class="empty">No language data yet.</div></section>`;
-  }
-  const color = (row) => (/^#[0-9a-f]{3,8}$/i.test(row.color) ? row.color : NEUTRAL_CHART_COLOR);
-  const percent = (share) => (share < 0.001 ? "<0.1%" : `${(share * 100).toFixed(1)}%`);
-  const label = rows.map((row) => `${row.name} ${percent(row.share)}`).join(", ");
-  const bar = rows
-    .map(
-      (row) =>
-        `<span style="--language-color:${color(row)};flex-grow:${row.share}" title="${escapeHtml(row.name)} ${percent(row.share)}"></span>`,
-    )
-    .join("");
-  const legend = rows
-    .map(
-      (row) =>
-        `<li><span class="language-key" style="--language-color:${color(row)}"></span><span class="language-name">${escapeHtml(row.name)}</span><span class="language-share">${percent(row.share)}</span></li>`,
-    )
-    .join("");
-  return `<section class="panel page-section language-panel">${heading}<div class="language-bar" role="img" aria-label="${escapeHtml(label)}">${bar}</div><ul class="language-legend">${legend}</ul></section>`;
-}
-
 // A fraction such as 0.874 as "87%".
 export function formatPercent(share) {
   return share == null ? "—" : `${Math.round(share * 100)}%`;
@@ -270,15 +161,17 @@ export function reviewPanel(summary, subtitle) {
   const coverage = summary.merged_pull_requests_for_coverage
     ? `${number.format(summary.merged_pull_requests_reviewed)} of ${number.format(summary.merged_pull_requests_for_coverage)} merged pull requests had a review by someone other than the author before they merged.`
     : "No pull requests were merged in this range.";
-  return `<section class="panel page-section review-panel"><div class="panel-head"><div><h2>Code review</h2><div class="subtitle">${escapeHtml(subtitle)}</div></div></div>${stats(
-    summary,
-    [
+  return panel({
+    title: "Code review",
+    subtitle,
+    className: "review-panel",
+    body: `${stats(summary, [
       ["Review coverage", "review_coverage", formatPercent],
       ["Median time to first review", "median_hours_to_first_review", formatHours],
       ["PRs reviewed", "reviews"],
       ["Active reviewers", "active_reviewers"],
-    ],
-  )}<p class="page-copy">${escapeHtml(coverage)} Time to first review runs from opening, including time as a draft. Each reviewer counts once per pull request; reviews of one’s own pull requests and reviews by bots and AI accounts are not counted.</p></section>`;
+    ])}<p class="page-copy">${escapeHtml(coverage)} Time to first review runs from opening, including time as a draft. Each reviewer counts once per pull request; reviews of one’s own pull requests and reviews by bots and AI accounts are not counted.</p>`,
+  });
 }
 
 export function rangeStamp(days) {

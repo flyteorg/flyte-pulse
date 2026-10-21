@@ -371,7 +371,7 @@ a {
   padding: 8px 0;
 }
 
-.contributor-toggle {
+.toggle {
   display: inline-flex;
   align-self: start;
   gap: 2px;
@@ -381,7 +381,7 @@ a {
   background: var(--surface-raised);
 }
 
-.contributor-toggle button {
+.toggle button {
   border: 0;
   border-radius: var(--radius-pill);
   padding: 5px 12px;
@@ -392,16 +392,16 @@ a {
   cursor: pointer;
 }
 
-.contributor-toggle button:hover {
+.toggle button:hover {
   color: var(--heading);
 }
 
-.contributor-toggle button[aria-pressed="true"] {
+.toggle button[aria-pressed="true"] {
   background: var(--accent-soft);
   color: var(--heading);
 }
 
-.contributor-toggle button:focus-visible {
+.toggle button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -447,7 +447,7 @@ a {
   margin-bottom: 16px;
 }
 
-#summary-cards {
+.cards.summary-cards {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
@@ -521,6 +521,11 @@ a {
 .grid > *,
 .page-grid > * {
   min-width: 0;
+}
+
+.grid > .page-section,
+.overview-shares .page-section {
+  margin-bottom: 0;
 }
 
 .panel {
@@ -671,6 +676,16 @@ a {
   font-weight: 400;
 }
 
+td .user-alias {
+  display: block;
+  margin-left: 0;
+}
+
+td small .user-alias {
+  display: inline-block;
+  margin-left: 0.4em;
+}
+
 /* Tables */
 
 .table-wrap {
@@ -708,10 +723,10 @@ tbody tr:last-child td {
   border-bottom: 0;
 }
 
-/* About ten rows (13px text at 1.5 line height, 24px padding, 1px border), then
-   scroll; the header stays visible. */
+/* About ten rows of people (name and username lines at 1.5 line height, 24px padding,
+   1px border), then scroll; the header stays visible. */
 .table-scroll {
-  max-height: calc(38px + 10 * 44.5px);
+  max-height: calc(38px + 10 * 62px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -725,11 +740,6 @@ tbody tr:last-child td {
 
 tbody tr:hover td {
   background: color-mix(in srgb, var(--surface-hover) 45%, transparent);
-}
-
-.name {
-  font-weight: 600;
-  color: var(--heading);
 }
 
 .secondary {
@@ -832,7 +842,7 @@ tbody tr:hover td {
 /* Share pies */
 
 .overview-grid {
-  grid-template-columns: minmax(0, 1.4fr) minmax(360px, 0.9fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   grid-template-areas: "activity contributors" "shares contributors";
   align-items: start;
 }
@@ -858,68 +868,56 @@ tbody tr:hover td {
   min-width: 0;
 }
 
-.repository-overview-grid {
-  grid-template-columns: 1fr;
-}
-
-.repository-pie-layout {
+.share-pie {
+  --pie-size: 112px;
   display: grid;
-  grid-template-columns: minmax(145px, 190px) minmax(0, 1fr);
+  grid-template-columns: var(--pie-size) minmax(0, 1fr);
   align-items: center;
   gap: 16px;
+  min-height: 120px;
 }
 
-.repository-pie {
+.share-pie-large {
+  --pie-size: 168px;
+}
+
+.share-pie svg {
   display: block;
-  width: 100%;
-  max-width: 190px;
-  aspect-ratio: 1;
+  width: var(--pie-size);
+  height: var(--pie-size);
   overflow: visible;
 }
 
-.pie-slice {
-  stroke: var(--surface);
-  stroke-width: 1.5;
-}
-
-.pie-hole {
-  fill: var(--surface);
-}
-
-.repository-pie-total,
-.pie-total {
+.share-pie-total {
   fill: var(--heading);
   font: 500 17px var(--font);
 }
 
-.repository-pie-total-label,
-.pie-total-label {
+.share-pie-unit {
   fill: var(--muted);
   font: 10px var(--font);
 }
 
-.repository-pie-legend,
-.pie-legend {
+.share-pie-large .share-pie-total {
+  font-size: 14px;
+}
+
+.share-pie-large .share-pie-unit {
+  font-size: 8px;
+}
+
+.share-pie-legend {
   display: grid;
+  gap: 8px;
   list-style: none;
   margin: 0;
   padding: 0;
   min-width: 0;
+  max-height: 220px;
   overflow: auto;
 }
 
-.repository-pie-legend {
-  gap: 7px;
-  max-height: 230px;
-}
-
-.pie-legend {
-  gap: 8px;
-  max-height: 205px;
-}
-
-.repository-pie-legend li,
-.pie-legend li {
+.share-pie-legend li {
   display: grid;
   grid-template-columns: 9px minmax(0, 1fr) auto;
   align-items: center;
@@ -927,52 +925,32 @@ tbody tr:hover td {
   font-size: 12px;
 }
 
-.repository-pie-key,
-.pie-key {
+.share-pie-key {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-}
-
-.repository-pie-key {
   background: var(--slice-color);
 }
 
-.pie-key {
-  background: var(--pie-color);
-}
-
-.repository-pie-name,
-.pie-project {
+.share-pie-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.repository-pie-name .data-link,
-.pie-project .data-link {
+.share-pie-name .data-link {
   font-size: 12px;
 }
 
-.repository-pie-value,
-.pie-value {
+.share-pie-value {
   color: var(--muted);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.repository-pie-empty {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.contributor-repository-pies {
-  margin-bottom: 16px;
-}
-
-.project-pie-panel {
-  min-width: 0;
+.share-pie-panel > .subtitle {
+  margin-top: 12px;
 }
 
 /* Languages */
@@ -1026,47 +1004,7 @@ tbody tr:hover td {
   font-variant-numeric: tabular-nums;
 }
 
-.project-pie-content {
-  display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
-  align-items: center;
-  gap: 14px;
-  min-height: 120px;
-}
-
-.project-pie {
-  width: 112px;
-  height: 112px;
-  max-width: 112px;
-  max-height: 112px;
-  display: block;
-  overflow: visible;
-}
-
 /* Contributor and repository pages */
-
-.contributor-filters {
-  margin-top: 0;
-}
-
-.contributor-repository-filter,
-.contributor-repository-filter select {
-  min-width: 250px;
-}
-
-.repository-branch-filter,
-.repository-branch-filter select {
-  min-width: 260px;
-}
-
-.contributor-filters .status {
-  align-self: center;
-  max-width: 380px;
-}
-
-.contributor-list-filters {
-  margin-bottom: 16px;
-}
 
 .contributor-list-note {
   margin: 0 0 14px;
@@ -1156,18 +1094,6 @@ tbody tr:hover td {
 
 .loading-state[hidden] {
   display: none;
-}
-
-.async-section.is-loading > :not(.loading-state) {
-  display: none;
-}
-
-.chart-region .loading-state {
-  min-height: 230px;
-}
-
-.repository-share-region .loading-state {
-  min-height: 190px;
 }
 
 .is-refreshing {
@@ -1264,7 +1190,7 @@ tbody tr:hover td {
 /* Responsive */
 
 @media (max-width: 1050px) {
-  #summary-cards {
+  .cards.summary-cards {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .site-header-inner {
@@ -1277,12 +1203,6 @@ tbody tr:hover td {
   }
   .header-actions {
     margin-left: auto;
-  }
-}
-
-@media (max-width: 1000px) {
-  .repository-overview-grid {
-    grid-template-columns: 1fr;
   }
 }
 
@@ -1306,15 +1226,9 @@ tbody tr:hover td {
 }
 
 @media (max-width: 760px) {
-  .project-pie-content {
-    grid-template-columns: 104px minmax(0, 1fr);
+  .share-pie {
+    --pie-size: 104px;
     gap: 10px;
-  }
-  .project-pie {
-    width: 104px;
-    height: 104px;
-    max-width: 104px;
-    max-height: 104px;
   }
   .contributor-ai .cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1322,7 +1236,7 @@ tbody tr:hover td {
 }
 
 @media (max-width: 700px) {
-  #summary-cards {
+  .cards.summary-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .page-grid {
@@ -1365,15 +1279,9 @@ tbody tr:hover td {
   .field,
   .field select,
   .field.repo,
-  .field.repo select,
-  .contributor-filters .field,
-  .contributor-filters .field select {
+  .field.repo select {
     min-width: 100%;
     width: 100%;
-  }
-  .contributor-filters .status {
-    width: 100%;
-    padding-top: 0;
   }
   .cards {
     gap: 10px;
@@ -1392,27 +1300,17 @@ tbody tr:hover td {
     display: block;
   }
   .legend,
-  .contributor-toggle {
+  .toggle {
     margin-top: 10px;
   }
   .chart {
     height: 200px;
   }
-  .repository-pie-layout {
-    grid-template-columns: minmax(110px, 150px) minmax(0, 1fr);
-    gap: 10px;
+  .share-pie {
+    --pie-size: 96px;
   }
-  .contributor-repository-pies {
-    grid-template-columns: 1fr;
-  }
-  .project-pie-content {
-    grid-template-columns: 96px minmax(0, 1fr);
-  }
-  .project-pie {
-    width: 96px;
-    height: 96px;
-    max-width: 96px;
-    max-height: 96px;
+  .share-pie-large {
+    --pie-size: 128px;
   }
   .site-footer-inner {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1420,7 +1318,7 @@ tbody tr:hover td {
 }
 
 @media (max-width: 430px) {
-  #summary-cards {
+  .cards.summary-cards {
     grid-template-columns: 1fr;
   }
 }

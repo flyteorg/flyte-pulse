@@ -27,7 +27,7 @@ GitHub Actions (daily)                          GitHub Pages
 | `crates/pulse` | `pulse` CLI: `sync` (collector), `build` (snapshot), `convert` (state formats). |
 | `crates/pulse-web` | WebAssembly wrapper (`Pulse.load`, `pulse.request(url, today)`). |
 | `tools/pulse-seed` | One-time import of an existing raw Parquet dataset. Not built by default. |
-| `web/` | Single-page site: `index.html`, hash-routed JS views, CSS. |
+| `web/` | Single-page site: `index.html`, hash-routed JS views, CSS. Pages share the components in `web/js/components` (sortable tables, charts, filters). |
 | `config/` | Reviewed catalogs: `repositories.yaml`, `companies.yaml`, `affiliations.yaml`. |
 | `scripts/build-site.sh` | Builds the site into `dist/`: WebAssembly, web assets, and the data snapshot. |
 
