@@ -322,8 +322,8 @@ export function mountOverview(root) {
     const newContributors = new URLSearchParams({ days: days.value, section: "new-contributors" });
     setParam(newContributors, "repository_id", repository.value);
     return (
-      summaryCards(s, `#/users?${newContributors}`) +
       `<div id="overview-highlights">${highlightCards(data)}</div>` +
+      summaryCards(s, `#/users?${newContributors}`) +
       `<section class="grid overview-grid">${activityPanel(data.daily, {
         id: "overview-activity",
         subtitle: "Daily merged PRs and commits across selected repositories, UTC",
