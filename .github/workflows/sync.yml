@@ -77,7 +77,7 @@ jobs:
           elif gh release download "$STATE_RELEASE" --pattern pulse-state.json.gz --dir . 2>/dev/null; then
             echo "STATE=pulse-state.json.gz" >> "$GITHUB_ENV"
           else
-            echo "::error::No saved state on the $DATA_BRANCH branch or the $STATE_RELEASE release; seed it first (see DEVELOPMENT.md)."
+            echo "::error::No saved state on the $DATA_BRANCH branch or the $STATE_RELEASE release; create it with a local sync first (see DEVELOPMENT.md)."
             exit 1
           fi
 

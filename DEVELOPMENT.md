@@ -62,7 +62,6 @@ trailer for AI help, and never tagging people with `@` in GitHub text, are in
 | `crates/pulse-core` | Data model, snapshot format, and every dashboard query. Compiles natively and to WebAssembly. |
 | `crates/pulse` | `pulse` CLI: `sync` (collector), `build` (snapshot), `convert` (state formats). |
 | `crates/pulse-web` | WebAssembly wrapper (`Pulse.load`, `pulse.request(url, today)`). |
-| `tools/pulse-seed` | One-time import of an existing raw Parquet dataset. Not built by default. |
 | `web/` | Single-page site: `index.html`, hash-routed JS views, CSS. Pages share the components in `web/js/components` (sortable tables, charts, filters). |
 | `config/` | Reviewed catalogs: `repositories.yaml`, `companies.yaml`, `affiliations.yaml`, and the discovery settings in `discovery.yaml`. |
 | `scripts/build-site.sh` | Builds the site into `dist/`: WebAssembly, web assets, and the data snapshot, then runs the smoke test. |
@@ -145,18 +144,13 @@ scripts/build-site.sh state dist
 python3 -m http.server -d dist 8000
 ```
 
-### Seeding (one time)
+### Starting from nothing
 
-The initial state was imported from an existing raw dataset (a directory with
-`manifest.json` and Parquet tables) instead of scanning all history through the API:
-
-```sh
-cargo run --release -p pulse-seed -- --raw-dir /path/to/raw-dataset --out seed.json.gz
-GITHUB_TOKEN=$(gh auth token) ./target/release/pulse sync --state seed.json.gz --out state
-```
-
-The dataset's cursors become PR scan cursors, so the first sync scans pull
-requests incrementally while making a full Git clone of every repository.
+The workflow refuses to run without a saved state, so the first state is created
+locally: `pulse sync` with a missing `--state` path starts empty and collects every
+active repository's full history (a full clone plus all of its pull requests). Push
+the resulting `state/` directory to the orphan `data` branch; from then on the daily
+sync is incremental.
 
 ## GitHub setup
 

@@ -1,6 +1,5 @@
 //! Collected facts and sync bookkeeping, persisted between runs as gzipped JSON.
 //!
-//! The tables mirror the raw Parquet dataset format, so such a dataset can seed the state.
 //! JSON keeps the format readable and lets new optional fields default cleanly.
 
 use serde::{Deserialize, Serialize};
