@@ -19,8 +19,24 @@ ignore:
     - Self-employed
     - None
     - N/A
+    # Several organizations at once; the employer is curated by hand.
+    - '@Impact-Africa-Network @salarysasa @'
+    - '@finbox-in, @creativecommons, @kmesh-net'
+    - '@lyft @stripe @facebook'
+    - '@microsoft @evenhealthcare @PeakBI @spdx @campus-experts'
+    - '@nexpace-limited @toss @pubg'
+    - '@p-to-q @scanapi @Spark-Lab-Global @Kyutefox'
+    # Not an employer.
+    - Neel
+    - L3 Cybersecurity Engineer ▲
+    # A project role, not an employer.
+    - Maintainer @kedro
+    # xAI, curated by hand; the profile adds a university.
+    - xAI | BUAA
   organizations:
     - flyteorg
+    # An open source project, not an employer.
+    - kedro
   domains:
     # Personal committer addresses of the Apache Software Foundation.
     - apache.org
@@ -33,3 +49,5 @@ ignore:
   users:
     # Works at Union (union.ai commit email); the profile still names a former employer.
     - k1sauce
+    # The profile company field holds an email address.
+    - aazam-gh

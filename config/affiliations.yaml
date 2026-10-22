@@ -29,6 +29,8 @@ affiliations:
   company_id: linkedin
 - username: AaronSiddiky
   company_id: enagrams
+- username: abhay-vardhan-ai
+  company_id: applied-intuition
 - username: abhijeet-chatterjee
   company_id: microsoft
 - username: adarsh-jha-dev
@@ -75,6 +77,8 @@ affiliations:
   company_id: tleem
 - username: ArthurBook
   company_id: liquid-ai
+- username: arvind-chandra
+  company_id: lockheed-martin
 - username: asahalyft
   company_id: lyft
 - username: Ash0807
@@ -105,6 +109,8 @@ affiliations:
   company_id: modular
 - username: bgedik
   company_id: unscrambl
+- username: bharat-patel85
+  company_id: applied-intuition
 - username: BhavnaMogha
   company_id: codewithbhavna
 - username: bnsblue
@@ -174,7 +180,9 @@ affiliations:
 - username: ddhirajkumar
   company_id: fanatics
 - username: ddl-ebrown
-  company_id: cerebro-tech
+  company_id: domino-data-lab
+- username: ddl-rliu
+  company_id: domino-data-lab
 - username: debasisdwivedy
   company_id: indiana-university
 - username: dejanzele
@@ -228,6 +236,8 @@ affiliations:
   company_id: usu-software
 - username: gdabisias
   company_id: nvidia
+- username: generalzhou
+  company_id: arize
 - username: georgesnelling
   company_id: union
 - username: gfee-lyft
@@ -240,6 +250,8 @@ affiliations:
   company_id: elicit
 - username: goyalankit
   company_id: linkedin
+- username: hajapy
+  company_id: arctic-wolf
 - username: hamersaw
   company_id: lancedb
 - username: hamersaw
@@ -255,6 +267,8 @@ affiliations:
   company_id: lyft
 - username: HarshMN2345
   company_id: appwrite
+- username: hebiao064
+  company_id: xai
 - username: helenzhangyc
   company_id: shopify
 - username: hfurkanvural
@@ -308,6 +322,8 @@ affiliations:
   company_id: tensorchord
 - username: kinow
   company_id: barcelona-supercomputing-center
+- username: kosigz
+  company_id: lyft
 - username: kosigz-lyft
   company_id: lyft
 - username: Kota-Karthik
@@ -352,6 +368,8 @@ affiliations:
   company_id: linkedin
 - username: mhotan
   company_id: union
+- username: mickjermsurawong-openai
+  company_id: openai
 - username: milton0825
   company_id: lyft
 - username: MinuraPunchihewa
@@ -364,6 +382,8 @@ affiliations:
   company_id: vinted
 - username: MortalHappiness
   company_id: anyscale
+- username: mrmcduff
+  company_id: whylabs
 - username: mruoss
   company_id: cradle
 - username: mucahitkantepe
@@ -384,6 +404,10 @@ affiliations:
   company_id: opta
 - username: noahjax
   company_id: tako-data
+- username: noahjax
+  company_id: domino-data-lab
+  valid_from: '2024-02-01'
+  valid_until: '2024-07-01'
 - username: noobkid2411
   company_id: bits-pilani
 - username: oratis
@@ -394,6 +418,8 @@ affiliations:
   company_id: spotify
 - username: patrick-kidger
   company_id: cradle
+- username: peterghaddad
+  company_id: lockheed-martin
 - username: peterxcli
   company_id: apache-software-foundation
 - username: pimdh
@@ -402,6 +428,8 @@ affiliations:
   company_id: union
 - username: pmahindrakar-oss
   company_id: union
+- username: pocheung1
+  company_id: domino-data-lab
 - username: pohanhuang
   company_id: suse
 - username: popojk
@@ -538,6 +566,8 @@ affiliations:
   company_id: anyscale
 - username: yindia
   company_id: woven-by-toyota
+- username: yisheng-oai
+  company_id: applied-intuition
 - username: yktechstash
   company_id: tiktok
 - username: zeryx

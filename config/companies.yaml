@@ -65,6 +65,13 @@ companies:
   canonical_name: Apple
   website_url: https://www.apple.com/
   aliases: []
+- id: applied-intuition
+  canonical_name: Applied Intuition
+  website_url: https://www.appliedintuition.com/
+  aliases:
+  - '@Applied-Intuition'
+  domains:
+  - applied.co
 - id: appliedai-institute
   canonical_name: appliedAI Institute for Europe
   website_url: https://www.appliedai-institute.de/en/
@@ -74,6 +81,17 @@ companies:
   canonical_name: Appwrite
   website_url: https://appwrite.io/
   aliases: []
+- id: arctic-wolf
+  canonical_name: Arctic Wolf
+  website_url: https://arcticwolf.com/
+  aliases:
+  - Arctic Wolf Networks
+- id: arize
+  canonical_name: Arize AI
+  website_url: https://arize.com/
+  aliases:
+  - '@Arize-ai'
+  - Arize
 - id: artera
   canonical_name: Artera
   website_url: https://artera.ai/
@@ -133,11 +151,6 @@ companies:
   canonical_name: California State University
   website_url: https://www.calstate.edu/
   aliases: []
-- id: cerebro-tech
-  canonical_name: Cerebro Tech
-  website_url: https://github.com/cerebrotech
-  aliases:
-  - '@cerebrotech'
 - id: clearnote-health
   canonical_name: ClearNote Health
   website_url: https://www.clearnotehealth.com
@@ -195,6 +208,15 @@ companies:
   website_url: https://www.derapi.com
   aliases:
   - '@derapi'
+- id: domino-data-lab
+  canonical_name: Domino Data Lab
+  website_url: https://domino.ai/
+  aliases:
+  - '@cerebrotech'
+  - '@dominodatalab'
+  - Domino
+  domains:
+  - dominodatalab.com
 - id: dropbox
   canonical_name: Dropbox
   website_url: https://dropbox.com/
@@ -419,6 +441,8 @@ companies:
   canonical_name: Lockheed Martin
   website_url: https://www.lockheedmartin.com/
   aliases: []
+  domains:
+  - lmco.com
 - id: lyft
   canonical_name: Lyft
   website_url: https://www.lyft.com
@@ -557,6 +581,8 @@ companies:
   website_url: https://openai.com/
   aliases:
   - '@openai'
+  domains:
+  - openai.com
 - id: opta
   canonical_name: Opta
   website_url: https://docs.opta.dev/
@@ -818,6 +844,11 @@ companies:
   - '@wherobots'
   domains:
   - wherobots.com
+- id: whylabs
+  canonical_name: WhyLabs
+  website_url: https://whylabs.ai/
+  aliases:
+  - '@whylabs'
 - id: wolt
   canonical_name: Wolt
   website_url: https://wolt.com
