@@ -557,6 +557,8 @@ companies:
   website_url: https://openai.com/
   aliases:
   - '@openai'
+  domains:
+  - openai.com
 - id: opta
   canonical_name: Opta
   website_url: https://docs.opta.dev/
