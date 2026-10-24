@@ -1,4 +1,4 @@
-// Hash routes keep the site working under any GitHub Pages path: #/users/<id>?days=30.
+// Hash routes keep the site working under any GitHub Pages path: #/users/github/<login>?days=30.
 
 function decodeSegment(segment) {
   try {

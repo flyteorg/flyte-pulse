@@ -41,7 +41,7 @@ impl View<'_> {
             let map: BTreeMap<String, String> = dates
                 .into_iter()
                 .flatten()
-                .map(|(repo, date)| (data.repo(*repo).id.clone(), format_date(*date)))
+                .map(|(repo, date)| (data.repo_path(*repo).to_string(), format_date(*date)))
                 .collect();
             json!(map)
         };
@@ -61,7 +61,7 @@ impl View<'_> {
                 continue;
             }
             output.push(json!({
-                "id": person.id,
+                "id": data.key_path(key),
                 "name": data.display(key),
                 "login": person.login,
                 "kind": person.kind,
@@ -87,14 +87,14 @@ impl View<'_> {
         &self,
         id: &str,
         days: Option<i32>,
-        repository_id: Option<&str>,
+        repository: Option<&str>,
         include_history: bool,
     ) -> Option<Value> {
         let data = self.data;
         let key = data.key_index(id).filter(|&k| data.person(k).is_some())?;
         let person = data.person(key)?;
         let today = self.today;
-        let selected = repository_id.map(|r| data.repo_index(r).unwrap_or(NONE));
+        let selected = repository.map(|r| data.repo_index(r).unwrap_or(NONE));
         let multi_branch = |repo: u32| data.repo(repo).target_branches.len() > 1;
 
         let rows =
@@ -170,7 +170,7 @@ impl View<'_> {
                 let branch_index = branch.map_or(0, |b| data.branch_filter(&b.name));
                 let values = repository_metrics.get(&(repo, branch_index)).copied().unwrap_or_default();
                 repository_activity.push(json!({
-                    "id": data.repo(repo).id,
+                    "id": data.repo_path(repo),
                     "target_branch": branch.map_or("", |b| b.name.as_str()),
                     "name": data.repository_label(repo, branch.map(|b| (b.name.as_str(), b.label.as_str()))),
                     "commits": values.get(MetricKind::Commits),
@@ -250,7 +250,7 @@ impl View<'_> {
         let companies: HashMap<&str, &crate::snapshot::Company> =
             data.snapshot.companies.iter().map(|c| (c.id.as_str(), c)).collect();
         let mut contributor = json!({
-            "id": person.id,
+            "id": data.key_path(key),
             "name": data.display(key),
             "login": person.login,
             "kind": person.kind,
@@ -274,8 +274,8 @@ impl View<'_> {
                 "reviews": totals.get(MetricKind::Reviews),
             },
             "daily": daily,
-            "filters": {"days": days_value(days), "repository_id": repository_id.unwrap_or("")},
-            "repository_options": options.iter().map(|r| json!({"id": data.repo(*r).id, "name": data.repo(*r).full_name()})).collect::<Vec<_>>(),
+            "filters": {"days": days_value(days), "repository": data.repository_filter_value(repository)},
+            "repository_options": options.iter().map(|r| json!({"id": data.repo_path(*r), "name": data.repo(*r).full_name()})).collect::<Vec<_>>(),
             "repository_activity": repository_activity,
             "languages": languages,
             "ai_usage": ai_usage,

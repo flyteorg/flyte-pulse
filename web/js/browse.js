@@ -2,6 +2,7 @@ import { getJson } from "./api.js";
 import {
   aiContributorLink,
   content,
+  encodePath,
   escapeHtml,
   externalLink,
   number,
@@ -126,7 +127,7 @@ function contributorTable(users, query, view, days, repositoryId) {
 function userList(data, params) {
   const query = params.get("q") || "";
   const days = rangeParam(params, "30");
-  const repositoryId = params.get("repository_id") || "";
+  const repositoryId = params.get("repository") || "";
   return (
     pageHead("Contributors", "Human contributors with recorded GitHub activity.") +
     filterBar("Contributor list filters", [
@@ -182,7 +183,7 @@ function bindContributorSearch(data) {
     const params = currentRoute().params;
     setParam(params, "q", input.value.trim());
     params.set("days", days.value);
-    setParam(params, "repository_id", repository.value);
+    setParam(params, "repository", repository.value);
     replaceParams(params);
     document.getElementById("page-stamp").textContent = `${rangeStamp(days.value)} · contributors`;
   };
@@ -224,7 +225,7 @@ function contributorAiPanel(data) {
 }
 
 function contributorFilters(data) {
-  const filters = data.filters || { days: 365, repository_id: "" };
+  const filters = data.filters || { days: 365, repository: "" };
   return filterBar("Contributor filters", [
     rangeField("contributor-days", String(filters.days || 365)),
     selectField({
@@ -235,7 +236,7 @@ function contributorFilters(data) {
         repository.id,
         repository.name,
       ]),
-      selected: filters.repository_id || "",
+      selected: filters.repository || "",
       className: "repo",
     }),
   ]);
@@ -309,7 +310,7 @@ function repositoryDetailPage(data) {
 function loadRepositoryCompanyShare(repositoryId, filters) {
   const params = new URLSearchParams({
     days: String(filters.days),
-    repository_id: repositoryId,
+    repository: repositoryId,
     target_branch: filters.target_branch || "",
   });
   return loadCompanyShare(
@@ -406,10 +407,10 @@ function showContributor(contributorId, data) {
 async function loadContributorHistory(contributorId, summaryData, requestId) {
   const filters = summaryData.filters || {};
   const query = new URLSearchParams({ days: String(filters.days || "365") });
-  if (filters.repository_id) query.set("repository_id", filters.repository_id);
+  if (filters.repository) query.set("repository", filters.repository);
   try {
     const historyData = await getJson(
-      `/api/users/${encodeURIComponent(contributorId)}/history?${query.toString()}`,
+      `/api/users/${encodePath(contributorId)}/history?${query.toString()}`,
     );
     if (requestId !== page.requestId) return;
     showContributor(contributorId, { ...summaryData, ...historyData });
@@ -431,9 +432,9 @@ function bindContributorFilters(contributorId) {
   bindFilters([days, repository], {
     apply: (params) => {
       params.set("days", days.value);
-      setParam(params, "repository_id", repository.value);
+      setParam(params, "repository", repository.value);
     },
-    url: (params) => `/api/users/${encodeURIComponent(contributorId)}?${params.toString()}`,
+    url: (params) => `/api/users/${encodePath(contributorId)}?${params.toString()}`,
     render: (data, requestId) => {
       showContributor(contributorId, data);
       document.getElementById("page-stamp").textContent = rangeStamp(String(data.filters.days));
@@ -550,7 +551,7 @@ function bindAIContributorFilters(identityKey) {
   bindFilters([days, repository], {
     apply: (params) => {
       params.set("days", days.value);
-      setParam(params, "repository_id", repository.value);
+      setParam(params, "repository", repository.value);
     },
     url: (params) => `/api/ai-contributors/${encodeURIComponent(identityKey)}?${params.toString()}`,
     render: (data) => {
@@ -569,7 +570,7 @@ function bindRepositoryFilters(repositoryId) {
       params.set("days", days.value);
       setParam(params, "target_branch", branch.value);
     },
-    url: (params) => `/api/repositories/${encodeURIComponent(repositoryId)}?${params.toString()}`,
+    url: (params) => `/api/repositories/${encodePath(repositoryId)}?${params.toString()}`,
     render: (data) => {
       content.innerHTML = repositoryDetailPage(data);
       bindRepositoryFilters(repositoryId);
@@ -659,7 +660,8 @@ function aiActivityPage(data) {
 export async function loadBrowsePage(route, requestId) {
   const { parts, params } = route;
   const section = parts[0] || "";
-  const id = parts[1];
+  // Page paths span several segments: #/users/github/octocat, #/repositories/github/owner/name.
+  const id = parts.slice(1).join("/");
   const stale = () => requestId !== page.requestId;
   const withDays = () => {
     const query = new URLSearchParams(params);
@@ -672,7 +674,7 @@ export async function loadBrowsePage(route, requestId) {
     if (stale()) return;
     content.innerHTML = repositoryList(data);
   } else if (section === "repositories") {
-    data = await getJson(`/api/repositories/${encodeURIComponent(id)}?${withDays()}`);
+    data = await getJson(`/api/repositories/${encodePath(id)}?${withDays()}`);
     if (stale()) return;
     content.innerHTML = repositoryDetailPage(data);
     bindRepositoryFilters(id);
@@ -683,7 +685,7 @@ export async function loadBrowsePage(route, requestId) {
     content.innerHTML = userList(data, params);
     bindContributorSearch(data);
   } else if (section === "users") {
-    data = await getJson(`/api/users/${encodeURIComponent(id)}?${withDays()}`);
+    data = await getJson(`/api/users/${encodePath(id)}?${withDays()}`);
     if (stale()) return;
     showContributor(id, data);
     void loadContributorHistory(id, data, page.requestId);

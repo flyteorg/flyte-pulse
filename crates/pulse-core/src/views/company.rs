@@ -58,7 +58,7 @@ impl View<'_> {
     pub(crate) fn companies(&self, company_id: &str, params: &Params) -> ApiResult {
         let data = self.data;
         let days = parse_days(params.get_or("days", "365"))?;
-        let repository_id = params.get_or("repository_id", "");
+        let repository = params.repository().unwrap_or("");
         let target_branch = params.get_or("target_branch", "");
         let independent = Company {
             id: "independent".into(),
@@ -88,12 +88,13 @@ impl View<'_> {
                 let display = data.repository_label(index, branch.map(|b| (b.name.as_str(), b.label.as_str())));
                 let branch_name = branch.map_or("", |b| b.name.as_str());
                 repo_names.insert((index, data.branch_filter(branch_name)), display.clone());
-                repository_options.push(json!({"id": repo.id, "target_branch": branch_name, "name": display}));
+                repository_options
+                    .push(json!({"id": data.repo_path(index), "target_branch": branch_name, "name": display}));
             }
         }
         repository_options.sort_by_cached_key(|r| fold(r["name"].as_str().unwrap_or_default()));
 
-        let repo_filter = (!repository_id.is_empty()).then(|| data.repo_index(repository_id).unwrap_or(NONE));
+        let repo_filter = (!repository.is_empty()).then(|| data.repo_index(repository).unwrap_or(NONE));
         let target = data.branch_filter(target_branch);
         let in_scope = |date: i32, repo: u32| {
             start.is_none_or(|s| date >= s) && date <= end && repo_filter.is_none_or(|r| r == repo)
@@ -151,7 +152,7 @@ impl View<'_> {
                     continue;
                 }
                 matches.entry(bucket).or_default().push(json!({
-                    "id": person.id,
+                    "id": data.key_path(index as u32),
                     "login": person.login,
                     "name": data.display(index as u32),
                     "affiliation": affiliation,
@@ -199,7 +200,7 @@ impl View<'_> {
         };
         let mut result = json!({
             "companies": rows,
-            "filters": {"days": days_value(days), "repository_id": repository_id, "target_branch": target_branch},
+            "filters": {"days": days_value(days), "repository": data.repository_filter_value(params.repository()), "target_branch": target_branch},
             "repository_options": repository_options,
             "coverage": {"events": coverage_total, "reviewed_events": coverage_reviewed, "percent": percent},
             "mapping_revision": data.snapshot.meta.mapping_revision,
@@ -231,14 +232,14 @@ impl View<'_> {
             // Ordered by repository ID, then branch name.
             let mut repository_rows: Vec<(&(u32, u32), &Values)> = repository_totals.iter().collect();
             repository_rows
-                .sort_by_cached_key(|((repo, branch), _)| (data.repo(*repo).id.clone(), data.branch(*branch)));
+                .sort_by_cached_key(|((repo, branch), _)| (data.repo_path(*repo).to_string(), data.branch(*branch)));
             result["repository_activity"] = json!(repository_rows
                 .into_iter()
                 .map(|((repo, branch), v)| {
                     let mut row = json!({
-                        "id": data.repo(*repo).id,
+                        "id": data.repo_path(*repo),
                         "target_branch": data.branch(*branch),
-                        "name": repo_names.get(&(*repo, *branch)).cloned().unwrap_or_else(|| data.repo(*repo).id.clone()),
+                        "name": repo_names.get(&(*repo, *branch)).cloned().unwrap_or_else(|| data.repo_path(*repo).to_string()),
                     });
                     for (key, value) in metric_values(v) {
                         row[key] = value;

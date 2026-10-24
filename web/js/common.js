@@ -65,7 +65,12 @@ export function formatStamp(value) {
         " UTC";
 }
 
-// Internal links are hash routes; `path` is the route path, e.g. /repositories/<id>.
+// Internal links are hash routes; `path` is the route path, e.g. /repositories/github/owner/name.
+// Page paths (`github/owner/name`, `github/login`) are encoded one segment at a time.
+export function encodePath(path) {
+  return String(path).split("/").map(encodeURIComponent).join("/");
+}
+
 export function link(path, label, details = "") {
   return `<a class="data-link" href="${escapeHtml(`#${path}`)}">${escapeHtml(label)}</a>${details ? `<small>${escapeHtml(details)}</small>` : ""}`;
 }
@@ -113,14 +118,14 @@ export function stats(summary, entries, { pending = false, className = "" } = {}
 
 export function repositoryLink(id, name, targetBranch = "") {
   const query = targetBranch ? `?target_branch=${encodeURIComponent(targetBranch)}` : "";
-  return link(`/repositories/${encodeURIComponent(id)}${query}`, name || id);
+  return link(`/repositories/${encodePath(id)}${query}`, name || id);
 }
 
 export function userLink(id, name, login) {
   const label = escapeHtml(name || login || id || "Unknown");
   const alias = login && name ? `<span class="user-alias">@${escapeHtml(login)}</span>` : "";
   if (!id) return `${label}${alias}`;
-  return `<a class="data-link" href="#/users/${encodeURIComponent(id)}">${label}</a>${alias}`;
+  return `<a class="data-link" href="#/users/${encodePath(id)}">${label}</a>${alias}`;
 }
 
 export function companyLink(id, name, query = "") {

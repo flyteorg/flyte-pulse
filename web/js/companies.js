@@ -47,12 +47,12 @@ function companyShare(id, companies, query, options = {}) {
   });
 }
 
-// Fill `region` with company credits for `params` (days, repository_id, target_branch). A
+// Fill `region` with company credits for `params` (days, repository, target_branch). A
 // region replaced in the meantime ignores its response.
 export async function loadCompanyShare(region, id, params, options = {}) {
   const query = new URLSearchParams(
     [...params].filter(
-      ([key, value]) => value && ["days", "repository_id", "target_branch"].includes(key),
+      ([key, value]) => value && ["days", "repository", "target_branch"].includes(key),
     ),
   ).toString();
   try {
@@ -139,7 +139,7 @@ function companyFilters(data) {
           JSON.stringify([repo.id, repo.target_branch]),
           repo.name,
         ]),
-        selected: JSON.stringify([filters.repository_id, filters.target_branch]),
+        selected: JSON.stringify([filters.repository, filters.target_branch]),
       }),
     ],
     '<p class="page-copy">Filters apply to activity. Profile matches include current and former affiliations across all periods.</p>',
@@ -262,7 +262,7 @@ export function bindCompanyFilters(data, id = "") {
     apply: (params) => {
       params.set("days", days.value);
       const [repo, branch] = repository.value ? JSON.parse(repository.value) : ["", ""];
-      setParam(params, "repository_id", repo);
+      setParam(params, "repository", repo);
       setParam(params, "target_branch", branch);
     },
     url: (params) => `/api/companies${id ? `/${encodeURIComponent(id)}` : ""}?${params}`,

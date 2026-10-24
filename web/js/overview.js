@@ -245,7 +245,7 @@ export function mountOverview(root) {
 
   const dashboardUrl = (values) => {
     const query = new URLSearchParams({ days: rangeParam(values, "30") });
-    if (values.get("repository_id")) query.set("repository_id", values.get("repository_id"));
+    if (values.get("repository")) query.set("repository", values.get("repository"));
     return `/api/dashboard?${query}`;
   };
 
@@ -320,7 +320,7 @@ export function mountOverview(root) {
   function overviewBody(data) {
     const s = data.summary;
     const newContributors = new URLSearchParams({ days: days.value, section: "new-contributors" });
-    setParam(newContributors, "repository_id", repository.value);
+    setParam(newContributors, "repository", repository.value);
     return (
       `<div id="overview-highlights">${highlightCards(data)}</div>` +
       summaryCards(s, `#/users?${newContributors}`) +
@@ -371,7 +371,7 @@ export function mountOverview(root) {
     currentData = data;
     if (repository.options.length === 1) {
       for (const item of data.repositories) repository.add(new Option(item.name, item.id));
-      repository.value = selection.get("repository_id") || "";
+      repository.value = selection.get("repository") || "";
     }
     $("overview-body").innerHTML = overviewBody(data);
     showContributors();
@@ -390,7 +390,7 @@ export function mountOverview(root) {
       bindFilters([days, repository], {
         apply: (values) => {
           values.set("days", days.value);
-          setParam(values, "repository_id", repository.value);
+          setParam(values, "repository", repository.value);
         },
         url: dashboardUrl,
         render: show,
