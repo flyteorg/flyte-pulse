@@ -100,9 +100,9 @@ impl Dataset {
 
     pub(crate) fn pull_request_view(&self, index: u32) -> Value {
         let pr = &self.snapshot.pull_requests[index as usize];
-        let author_id = self.key_id(pr.author);
+        let author_id = self.key_path(pr.author);
         json!({
-            "repository_id": self.repo(pr.repo).id,
+            "repository_id": self.repo_path(pr.repo),
             "provider_id": pr.provider_id,
             "repository": self.repo(pr.repo).full_name(),
             "number": pr.number,
@@ -127,7 +127,7 @@ impl Dataset {
         match self.person(key) {
             Some(p) if !p.display_name.is_empty() => p.display_name.clone(),
             Some(p) if !p.login.is_empty() => format!("@{}", p.login),
-            _ => self.key_id(key).to_string(),
+            _ => self.key_path(key).to_string(),
         }
     }
 }
@@ -135,7 +135,7 @@ impl Dataset {
 fn contributor_row(view: &View, key: u32, values: &Totals) -> Value {
     let data = view.data;
     json!({
-        "id": data.key_id(key),
+        "id": data.key_path(key),
         "name": data.ranking_name(key),
         "login": data.login(key),
         "identity_kind": data.person(key).map_or("UNKNOWN", |p| p.kind.as_str()),
@@ -165,12 +165,12 @@ impl View<'_> {
         &self,
         scope: Scope,
         days: Option<i32>,
-        repository_id: Option<&str>,
+        repository: Option<&str>,
         target_branch: Option<&str>,
     ) -> Value {
         let data = self.data;
         let today = self.today;
-        let repo_filter = repository_id.map(|id| data.repo_index(id));
+        let repo_filter = repository.map(|id| data.repo_index(id));
         let target = target_branch.map(|name| data.branch_filter(name));
 
         // The rows this query's "snapshot" contains.
@@ -314,7 +314,7 @@ impl View<'_> {
 
         let repository_row = |repo: u32, values: &Totals, branch: Option<(&str, &str)>| {
             json!({
-                "id": data.repo(repo).id,
+                "id": data.repo_path(repo),
                 "name": data.repository_label(repo, branch),
                 "target_branch": branch.map_or("", |b| b.0),
                 "branch_label": branch.map_or("", |b| b.1),
@@ -413,7 +413,7 @@ impl View<'_> {
             for branch in repo.branch_views() {
                 let activity = self.dashboard(Scope::All, Some(365), Some(&repo.id), branch.map(|b| b.name.as_str()));
                 output.push(json!({
-                    "id": repo.id,
+                    "id": data.repo_path(index as u32),
                     "name": data.repository_label(index as u32, branch.map(|b| (b.name.as_str(), b.label.as_str()))),
                     "target_branch": branch.map_or("", |b| b.name.as_str()),
                     "branch_label": branch.map_or("", |b| b.label.as_str()),
@@ -458,7 +458,7 @@ impl View<'_> {
             .map_or("", |b| b.label.as_str());
         Some(json!({
             "repository": {
-                "id": repo.id,
+                "id": data.repo_path(repo_index),
                 "name": repo.full_name(),
                 "owner": repo.owner,
                 "repository_name": repo.name,

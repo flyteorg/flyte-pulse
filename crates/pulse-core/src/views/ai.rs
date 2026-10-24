@@ -14,7 +14,7 @@ use crate::time::format_date;
 pub(crate) struct AiQuery<'a> {
     pub start: Option<i32>,
     pub end: Option<i32>,
-    pub repository_id: Option<&'a str>,
+    pub repository: Option<&'a str>,
     pub target_branch: Option<&'a str>,
     pub identity_key: Option<String>,
     pub provider: String,
@@ -112,7 +112,7 @@ impl View<'_> {
     pub(crate) fn ai_usage(&self, query: &AiQuery) -> Value {
         let data = self.data;
         let snapshot = &data.snapshot;
-        let repo_filter = query.repository_id.map(|id| data.repo_index(id).unwrap_or(NONE));
+        let repo_filter = query.repository.map(|id| data.repo_index(id).unwrap_or(NONE));
         let branch_filter = query.target_branch.map(|b| data.branch_filter(b));
         let commit_in_scope = |index: usize| {
             let commit = &snapshot.commits[index];
@@ -130,7 +130,11 @@ impl View<'_> {
         let mut activity: Ordered<String, Identity> = Ordered::new();
         let ensure = |activity: &mut Ordered<String, Identity>, identity: u32, contributor: u32| -> String {
             let model = &snapshot.ai_identities[identity as usize];
-            let key = if model.key.is_empty() { format!("id:{}", data.key_id(contributor)) } else { model.key.clone() };
+            let key = if model.key.is_empty() {
+                format!("id:{}", data.person(contributor).map_or("", |p| p.id.as_str()))
+            } else {
+                model.key.clone()
+            };
             let entry = activity.entry(key.clone());
             entry.describe(model);
             if contributor != NONE {
@@ -285,7 +289,7 @@ impl View<'_> {
             .map(|((repo, branch), sets)| {
                 let label = branch_label(*repo, *branch);
                 json!({
-                    "id": data.repo(*repo).id,
+                    "id": data.repo_path(*repo),
                     "name": data.repository_label(*repo, label.as_ref().map(|(n, l)| (n.as_str(), l.as_str()))),
                     "target_branch": data.branch(*branch),
                     "commits_ai_authored": sets[0].len(),
@@ -335,7 +339,7 @@ impl View<'_> {
             if !date_ok || !branch_ok || repo_filter.is_some_and(|r| r != row.repo) {
                 continue;
             }
-            let id = data.key_id(row.key);
+            let id = data.key_path(row.key);
             let target = if let Some(key) = id.strip_prefix("ai-model:") {
                 shared_by_identity.entry(key.to_string()).or_default()
             } else if let Some(key) = id.strip_prefix("ai-provider:") {
@@ -362,7 +366,7 @@ impl View<'_> {
             json!({
                 "key": key,
                 "provider_key": provider_key(&identity.provider),
-                "id": if identity.ids.len() == 1 { data.key_id(*identity.ids.iter().next().unwrap_or(&NONE)) } else { "" },
+                "id": if identity.ids.len() == 1 { data.key_path(*identity.ids.iter().next().unwrap_or(&NONE)) } else { "" },
                 "login": if identity.logins.len() == 1 { identity.logins.iter().next().cloned().unwrap_or_default() } else { String::new() },
                 "name": identity.name,
                 "provider": identity.provider,
@@ -425,7 +429,7 @@ impl View<'_> {
             names
                 .iter()
                 .filter(|n| selected.is_none_or(|s| s.contains(&snapshot.ai_identities[n.identity as usize].key)))
-                .map(|n| json!({"id": data.key_id(n.contributor), "name": n.name}))
+                .map(|n| json!({"id": data.key_path(n.contributor), "name": n.name}))
                 .collect()
         };
         let commit_value = |row: &CommitRow, categories: Vec<&str>, selected: Option<&HashSet<String>>| -> Value {
@@ -541,7 +545,7 @@ impl View<'_> {
                 .map(|((repo, branch), sets)| {
                     let label = branch_label(*repo, *branch);
                     json!({
-                        "id": data.repo(*repo).id,
+                        "id": data.repo_path(*repo),
                         "name": data.repository_label(*repo, label.as_ref().map(|(n, l)| (n.as_str(), l.as_str()))),
                         "target_branch": data.branch(*branch),
                         "commits": sets[0].len(),
@@ -620,7 +624,7 @@ impl View<'_> {
                     .map(|r| pr_value(r, json!(labels(categories_for(&r.identity_categories)))))
                     .collect::<Vec<_>>(),
                 "repository_options": data.repository_options(),
-                "filters": {"days": filter_days, "repository_id": query.repository_id.unwrap_or("")},
+                "filters": {"days": filter_days, "repository": data.repository_filter_value(query.repository)},
             })
         });
 

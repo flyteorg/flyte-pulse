@@ -65,6 +65,16 @@ impl Repo {
         }
     }
 
+    /// The page path `<provider>/<owner>/<name>`, such as `github/flyteorg/flyte`;
+    /// the stable ID when the repository has no name.
+    pub fn path(&self) -> String {
+        if self.owner.is_empty() && self.name.is_empty() {
+            return self.id.clone();
+        }
+        let host = self.id.split_once(':').map_or("", |(host, _)| host);
+        format!("{}/{}/{}", provider_slug(host), self.owner, self.name)
+    }
+
     pub fn status_label(&self) -> &str {
         if self.status.is_empty() { "UNKNOWN" } else { &self.status }
     }
@@ -74,6 +84,12 @@ impl Repo {
     pub fn branch_views(&self) -> Vec<Option<&TargetBranch>> {
         if self.target_branches.len() > 1 { self.target_branches.iter().map(Some).collect() } else { vec![None] }
     }
+}
+
+/// The provider word page paths start with: `github.com` and `github` both give
+/// `github`; a self-hosted provider keeps its host.
+pub fn provider_slug(host: &str) -> &str {
+    host.strip_suffix(".com").unwrap_or(host)
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -93,6 +109,18 @@ pub struct Person {
     /// Day ranges (`[start, end)`) at a maintainer company; activity on other days is
     /// community activity.
     pub maintainer_days: Vec<(i32, i32)>,
+}
+
+impl Person {
+    /// The page path `<provider>/<login>`, such as `github/octocat`; the stable ID
+    /// when the account has no login.
+    pub fn path(&self) -> String {
+        if self.login.is_empty() {
+            return self.id.clone();
+        }
+        let provider = self.id.split_once(':').map_or("", |(provider, _)| provider);
+        format!("{}/{}", provider_slug(provider), self.login)
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

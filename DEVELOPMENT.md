@@ -100,6 +100,9 @@ trailer for AI help, and never tagging people with `@` in GitHub text, are in
   points; pages of old pull requests get smaller when GitHub starts timing out.
 - Identifiers are stable across syncs: repositories are `github.com:<node id>`,
   people are `github:<account id>`, and pull requests use GitHub's numeric IDs.
+  Pages address them by name instead: `#/repositories/github/<owner>/<name>`,
+  `#/users/github/<login>`, and `?repository=github/<owner>/<name>` as a filter,
+  matched ignoring case. The API also accepts the stable IDs, so older links resolve.
 
 `pulse build` precomputes daily metrics, company credit, and AI attribution
 (Co-Authored-By / Assisted-By trailers, AI identities), and writes `pulse.bin.gz`

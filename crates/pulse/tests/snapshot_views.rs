@@ -166,14 +166,14 @@ fn overview_counts_human_activity() {
     let names: Vec<&str> =
         overview["repository_activity"].as_array().unwrap().iter().map(|r| r["name"].as_str().unwrap()).collect();
     assert!(names.contains(&"flyteorg/flyte · v2") && names.contains(&"flyteorg/flyte · v1"), "{names:?}");
-    let bob = overview["human_top_contributors"].as_array().unwrap().iter().find(|c| c["id"] == "github:2").unwrap();
+    let bob = overview["human_top_contributors"].as_array().unwrap().iter().find(|c| c["id"] == "github/bob").unwrap();
     assert_eq!(bob["shared_additions"], 10, "co-authors share the merged PR's lines");
     let ids: Vec<&str> =
         overview["top_contributors"].as_array().unwrap().iter().map(|c| c["id"].as_str().unwrap()).collect();
     assert!(ids.iter().all(|id| !id.starts_with("ai-")), "AI attribution keys are not contributors: {ids:?}");
     let community: Vec<&str> =
         overview["community_top_contributors"].as_array().unwrap().iter().map(|c| c["id"].as_str().unwrap()).collect();
-    assert_eq!(community, ["github:2"], "Alice works at Union, the maintainer company");
+    assert_eq!(community, ["github/bob"], "Alice works at Union, the maintainer company");
     assert_eq!(overview["maintainer_companies"], serde_json::json!(["Union"]));
 }
 
@@ -210,11 +210,11 @@ fn language_breakdowns() {
     // Overview sums code size: 750 Go and 1,250 Python bytes.
     let overview = get(&data, "/api/dashboard?days=30");
     assert_eq!(names(&overview), [("Python".to_string(), 0.625), ("Go".to_string(), 0.375)]);
-    let repo = get(&data, "/api/repositories/github.com%3AR1?days=365");
+    let repo = get(&data, "/api/repositories/github/flyteorg/flyte?days=365");
     assert_eq!(names(&repo), [("Go".to_string(), 0.75), ("Python".to_string(), 0.25)]);
     assert_eq!(repo["languages"][0]["color"], "#00ADD8");
     // Contributors get the languages of the repositories they committed to.
-    let alice = get(&data, "/api/users/github%3A1?days=all");
+    let alice = get(&data, "/api/users/github/alice?days=all");
     assert_eq!(names(&alice)[0].0, "Go");
 }
 
@@ -238,14 +238,14 @@ fn review_metrics() {
         .collect();
     assert_eq!(reviewers, [("alice", 2), ("bob", 1)]);
 
-    let repo = get(&data, "/api/repositories/github.com%3AR1?days=365&target_branch=main");
+    let repo = get(&data, "/api/repositories/github/flyteorg/flyte?days=365&target_branch=main");
     assert_eq!(repo["summary"]["reviews"], 1);
     assert_eq!(repo["top_reviewers"][0]["login"], "bob");
-    let master = get(&data, "/api/repositories/github.com%3AR1?days=365&target_branch=master");
+    let master = get(&data, "/api/repositories/github/flyteorg/flyte?days=365&target_branch=master");
     assert_eq!(master["summary"]["review_coverage"], Value::Null, "no merged PRs");
     assert_eq!(master["summary"]["median_hours_to_first_review"], Value::Null);
 
-    let alice = get(&data, "/api/users/github%3A1?days=all");
+    let alice = get(&data, "/api/users/github/alice?days=all");
     assert_eq!(alice["summary"]["reviews"], 2);
     let flytekit = alice["repository_activity"].as_array().unwrap().iter().find(|r| r["name"] == "flyteorg/flytekit");
     assert_eq!(flytekit.unwrap()["reviews"], 1, "repositories she only reviewed are listed");
@@ -261,14 +261,14 @@ fn review_metrics() {
 #[test]
 fn detail_pages_and_errors() {
     let data = dataset();
-    let repo = get(&data, "/api/repositories/github.com%3AR1?days=365&target_branch=main");
+    let repo = get(&data, "/api/repositories/github/flyteorg/flyte?days=365&target_branch=main");
     assert_eq!(repo["summary"]["pull_requests_merged"], 1);
     assert_eq!(repo["recent_pull_requests"][0]["url"], "https://github.com/flyteorg/flyte/pull/1");
     assert_eq!(get(&data, "/api/repositories")["repositories"].as_array().unwrap().len(), 3);
 
     let users = get(&data, "/api/users");
     assert_eq!(users["users"].as_array().unwrap().len(), 2);
-    let alice = get(&data, "/api/users/github%3A1/history?days=all");
+    let alice = get(&data, "/api/users/github/alice/history?days=all");
     assert_eq!(alice["summary"]["commits_authored"], 1);
     assert_eq!(alice["contributor"]["affiliation_history"][0]["company_name"], "Union");
     assert_eq!(alice["ai_usage"]["summary"]["commits_ai_coauthored"], 1);
@@ -283,6 +283,30 @@ fn detail_pages_and_errors() {
 
     assert_eq!(data.request("/api/dashboard?days=12", today()).unwrap_err().status, 422);
     assert_eq!(data.request("/api/users/github%3A999", today()).unwrap_err().status, 404);
+    assert_eq!(data.request("/api/users/github/nobody", today()).unwrap_err().status, 404);
+    assert_eq!(data.request("/api/repositories/github/flyteorg/nope", today()).unwrap_err().status, 404);
     assert_eq!(data.request("/api/companies/nope", today()).unwrap_err().status, 404);
     assert_eq!(data.request("/api/nope", today()).unwrap_err().status, 404);
+}
+
+#[test]
+fn page_paths_and_stable_ids() {
+    let data = dataset();
+    // Pages address people and repositories by provider and name, in any case.
+    let alice = get(&data, "/api/users/github/alice?days=all");
+    assert_eq!(alice["contributor"]["id"], "github/alice");
+    assert_eq!(get(&data, "/api/users/GitHub/Alice?days=all")["contributor"]["login"], "alice");
+    let repo = get(&data, "/api/repositories/github/FlyteOrg/Flyte?days=365");
+    assert_eq!(repo["repository"]["id"], "github/flyteorg/flyte");
+    // Older links with stable IDs still resolve, and filters echo the page path.
+    assert_eq!(get(&data, "/api/users/github%3A1?days=all")["contributor"]["id"], "github/alice");
+    assert_eq!(get(&data, "/api/repositories/github.com%3AR1?days=365")["repository"]["id"], "github/flyteorg/flyte");
+    let filtered = get(&data, "/api/users/github/alice?days=all&repository_id=github.com%3AR1");
+    assert_eq!(filtered["filters"]["repository"], "github/flyteorg/flyte");
+    let filtered = get(&data, "/api/dashboard?days=30&repository=github/flyteorg/flytekit");
+    assert_eq!(filtered["summary"]["pull_requests_merged"], 0, "the bot's merged PR is not counted");
+    let options = get(&data, "/api/users/github/alice?days=all")["repository_options"].clone();
+    assert_eq!(options[0]["id"], "github/flyteorg/flyte");
+    let companies = get(&data, "/api/companies?days=all&repository=github/flyteorg/flyte&target_branch=main");
+    assert_eq!(companies["filters"]["repository"], "github/flyteorg/flyte");
 }

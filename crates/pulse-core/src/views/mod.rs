@@ -56,8 +56,14 @@ impl Kind {
 /// A snapshot plus lookup indexes built once at load time.
 pub struct Dataset {
     pub snapshot: Snapshot,
+    /// Repository index by stable ID and by case-folded page path.
     repo_by_id: HashMap<String, u32>,
+    /// Contributor key index by stable ID or extra key, and by case-folded page path.
     key_by_id: HashMap<String, u32>,
+    /// Page path per repository (`github/owner/name`).
+    repo_paths: Vec<String>,
+    /// Page path per contributor key (`github/login`); extra keys are their own path.
+    key_paths: Vec<String>,
     /// Identity kind per contributor index.
     kinds: Vec<Kind>,
     metrics_by_repo: Vec<Vec<u32>>,
@@ -73,10 +79,18 @@ pub struct Dataset {
 
 impl Dataset {
     pub fn new(snapshot: Snapshot) -> Self {
-        let repo_by_id = snapshot.repositories.iter().enumerate().map(|(i, r)| (r.id.clone(), i as u32)).collect();
+        let repo_paths: Vec<String> = snapshot.repositories.iter().map(Repo::path).collect();
+        let mut repo_by_id: HashMap<String, u32> = HashMap::new();
+        for (i, repo) in snapshot.repositories.iter().enumerate() {
+            repo_by_id.entry(repo.id.clone()).or_insert(i as u32);
+            repo_by_id.entry(fold(&repo_paths[i])).or_insert(i as u32);
+        }
+        let mut key_paths: Vec<String> = snapshot.contributors.iter().map(Person::path).collect();
+        key_paths.extend(snapshot.extra_keys.iter().cloned());
         let mut key_by_id: HashMap<String, u32> = HashMap::new();
         for (i, person) in snapshot.contributors.iter().enumerate() {
             key_by_id.entry(person.id.clone()).or_insert(i as u32);
+            key_by_id.entry(fold(&key_paths[i])).or_insert(i as u32);
         }
         let base = snapshot.contributors.len() as u32;
         for (i, key) in snapshot.extra_keys.iter().enumerate() {
@@ -118,6 +132,8 @@ impl Dataset {
             snapshot,
             repo_by_id,
             key_by_id,
+            repo_paths,
+            key_paths,
             kinds,
             metrics_by_repo,
             metrics_by_key,
@@ -132,24 +148,34 @@ impl Dataset {
         &self.snapshot.repositories[index as usize]
     }
 
+    /// A repository by stable ID or by page path (`github/owner/name`, any case).
     pub fn repo_index(&self, id: &str) -> Option<u32> {
-        self.repo_by_id.get(id).copied()
+        self.repo_by_id.get(id).or_else(|| self.repo_by_id.get(&fold(id))).copied()
     }
 
+    /// The page path of a repository (`github/owner/name`).
+    pub fn repo_path(&self, index: u32) -> &str {
+        &self.repo_paths[index as usize]
+    }
+
+    /// A contributor key by stable ID, extra key, or page path (`github/login`, any case).
     pub fn key_index(&self, id: &str) -> Option<u32> {
-        self.key_by_id.get(id).copied()
+        self.key_by_id.get(id).or_else(|| self.key_by_id.get(&fold(id))).copied()
     }
 
-    /// The identifier behind a contributor key index ("" for none).
-    pub fn key_id(&self, key: u32) -> &str {
+    /// The page path behind a contributor key index ("" for none): `github/login`
+    /// for an account, the key itself for an extra key.
+    pub fn key_path(&self, key: u32) -> &str {
         if key == NONE {
             return "";
         }
-        let contributors = &self.snapshot.contributors;
-        match contributors.get(key as usize) {
-            Some(person) => &person.id,
-            None => self.snapshot.extra_keys.get(key as usize - contributors.len()).map_or("", String::as_str),
-        }
+        self.key_paths.get(key as usize).map_or("", String::as_str)
+    }
+
+    /// The `filters` value for a repository filter: the page path of the matched
+    /// repository, the value as given when it matches nothing, "" when absent.
+    pub fn repository_filter_value(&self, filter: Option<&str>) -> String {
+        filter.map_or_else(String::new, |value| self.repo_index(value).map_or(value, |i| self.repo_path(i)).to_string())
     }
 
     pub fn person(&self, key: u32) -> Option<&Person> {
@@ -194,16 +220,16 @@ impl Dataset {
         self.branch_index(name).unwrap_or(NONE - 1)
     }
 
-    /// Repositories as `{id, name}` options, sorted by name.
+    /// Repositories as `{id, name}` options, sorted by name; `id` is the page path.
     pub fn repository_options(&self) -> Vec<Value> {
-        let mut repositories: Vec<&Repo> = self.snapshot.repositories.iter().collect();
-        repositories.sort_by_cached_key(|r| fold(&r.full_name()));
-        repositories.into_iter().map(|r| json!({"id": r.id, "name": r.full_name()})).collect()
+        let mut repositories: Vec<u32> = (0..self.snapshot.repositories.len() as u32).collect();
+        repositories.sort_by_cached_key(|r| fold(&self.repo(*r).full_name()));
+        repositories.into_iter().map(|r| json!({"id": self.repo_path(r), "name": self.repo(r).full_name()})).collect()
     }
 
-    /// Display name, then login, then the raw identifier.
+    /// Display name, then login, then the page path.
     pub fn display(&self, key: u32) -> String {
-        self.name_or(key, self.key_id(key))
+        self.name_or(key, self.key_path(key))
     }
 
     pub fn login(&self, key: u32) -> String {
@@ -232,14 +258,14 @@ impl Dataset {
         }
         json!({
             "sha": commit.sha_hex(),
-            "repository_id": self.repo(commit.repo).id,
+            "repository_id": self.repo_path(commit.repo),
             "repository": self.repo(commit.repo).full_name(),
             "target_branches": self.commit_branches[index as usize].iter().map(|b| self.branch(*b)).collect::<Vec<_>>(),
             "committed_at": iso(commit.committed_at),
-            "author_id": self.key_id(commit.author),
+            "author_id": self.key_path(commit.author),
             "author_name": self.name_or(commit.author, git_name(&commit.author_name)),
             "author_login": self.login(commit.author),
-            "committer_id": self.key_id(commit.committer),
+            "committer_id": self.key_path(commit.committer),
             "committer_name": self.name_or(commit.committer, git_name(&commit.committer_name)),
             "committer_login": self.login(commit.committer),
             "url": self.commit_url(commit),
@@ -265,6 +291,11 @@ impl Dataset {
 
     /// Route an API URL such as `/api/dashboard?days=30`.
     /// `today` is the viewer's current UTC date as days since 1970-01-01.
+    ///
+    /// Repositories and contributors are addressed by page path, one segment per part
+    /// (`/api/repositories/github/flyteorg/flyte`, `/api/users/github/octocat`), or by
+    /// their stable ID in one segment (`github.com:<node id>`, `github:<account id>`).
+    /// The `repository` filter takes either form too.
     pub fn request(&self, url: &str, today: i32) -> ApiResult {
         let (path, query) = url.split_once('?').unwrap_or((url, ""));
         let params = Params::parse(query);
@@ -276,7 +307,7 @@ impl Dataset {
             ["api", "meta"] => Ok(self.meta()),
             ["api", "dashboard"] => {
                 let days = parse_days(params.get_or("days", "30"))?;
-                Ok(view.dashboard(activity::Scope::All, days, params.get("repository_id"), None))
+                Ok(view.dashboard(activity::Scope::All, days, params.repository(), None))
             }
             ["api", "ai-dashboard"] => {
                 let days = parse_days(params.get_or("days", "30"))?;
@@ -284,23 +315,33 @@ impl Dataset {
                 let usage = view.ai_usage(&ai::AiQuery {
                     start,
                     end: Some(today),
-                    repository_id: params.get("repository_id"),
+                    repository: params.repository(),
                     top_limit: None,
                     ..ai::AiQuery::default()
                 });
                 Ok(json!({"ai_top_contributors": usage["top_ais"]}))
             }
             ["api", "repositories"] => Ok(json!({"repositories": view.repository_list()})),
-            ["api", "repositories", id] => {
+            ["api", "repositories", id] if is_id(id) => {
                 let days = parse_days(params.get_or("days", "365"))?;
                 view.repository_detail(id, days, params.get("target_branch"))
                     .ok_or_else(|| ApiError::new(404, "Repository not found"))
             }
-            ["api", "users"] => Ok(view.contributor_index()),
-            ["api", "users", id] | ["api", "users", id, "history"] => {
+            ["api", "repositories", provider, owner, name] => {
                 let days = parse_days(params.get_or("days", "365"))?;
-                let history = segments.len() == 4;
-                view.contributor_detail(id, days, params.get("repository_id"), history)
+                view.repository_detail(&format!("{provider}/{owner}/{name}"), days, params.get("target_branch"))
+                    .ok_or_else(|| ApiError::new(404, "Repository not found"))
+            }
+            ["api", "users"] => Ok(view.contributor_index()),
+            ["api", "users", id] | ["api", "users", id, "history"] if is_id(id) => {
+                let days = parse_days(params.get_or("days", "365"))?;
+                view.contributor_detail(id, days, params.repository(), segments.len() == 4)
+                    .ok_or_else(|| ApiError::new(404, "Contributor not found"))
+            }
+            ["api", "users", provider, login] | ["api", "users", provider, login, "history"] => {
+                let days = parse_days(params.get_or("days", "365"))?;
+                let path = format!("{provider}/{login}");
+                view.contributor_detail(&path, days, params.repository(), segments.len() == 5)
                     .ok_or_else(|| ApiError::new(404, "Contributor not found"))
             }
             ["api", "companies"] => view.companies("", &params),
@@ -314,7 +355,7 @@ impl Dataset {
                 let usage = view.ai_usage(&ai::AiQuery {
                     start: days.map(|d| today - (d - 1)),
                     end: Some(today),
-                    repository_id: params.get("repository_id"),
+                    repository: params.repository(),
                     identity_key: Some(key.to_string()),
                     provider: params.get_or("provider", "").to_string(),
                     model: params.get_or("model", "").to_string(),
@@ -359,6 +400,18 @@ impl Params {
     pub fn get_or<'a>(&'a self, key: &str, default: &'a str) -> &'a str {
         self.0.iter().rev().find(|(k, _)| k == key).map_or(default, |(_, v)| v.as_str())
     }
+
+    /// The repository filter: `repository` (a page path or stable ID), or the older
+    /// `repository_id` parameter of shared links.
+    pub fn repository(&self) -> Option<&str> {
+        self.get("repository").or_else(|| self.get("repository_id"))
+    }
+}
+
+/// Whether a route segment is a stable ID (`github:123`, `github.com:<node id>`)
+/// rather than the first part of a page path.
+fn is_id(segment: &str) -> bool {
+    segment.contains(':')
 }
 
 pub fn percent_decode(value: &str) -> String {
