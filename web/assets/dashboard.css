@@ -1450,3 +1450,236 @@ tbody tr:hover td {
     grid-template-columns: 1fr;
   }
 }
+
+/* Journey */
+
+.journey-intro .page-copy {
+  margin-bottom: 10px;
+}
+
+.affiliation-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.affiliation-strip li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--surface-raised);
+  font-size: 14px;
+  color: var(--heading);
+}
+
+.affiliation-strip li.current {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.affiliation-strip small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.cards.journey-cards {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.journey-cards .card-note:not(:empty) {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.journey-grid {
+  align-items: start;
+}
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 4px;
+  position: relative;
+}
+
+.timeline::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 112px;
+  width: 2px;
+  background: var(--border);
+}
+
+.timeline-item {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 26px;
+  padding: 10px 0;
+  position: relative;
+}
+
+.timeline-item::before {
+  content: "";
+  position: absolute;
+  left: 103px;
+  top: 16px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--muted);
+  box-sizing: border-box;
+}
+
+.timeline-item.kind-milestone::before,
+.timeline-item.kind-record::before {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.timeline-item.kind-first::before,
+.timeline-item.kind-anniversary::before {
+  border-color: var(--highlight);
+  background: color-mix(in srgb, var(--highlight) 25%, var(--surface));
+}
+
+.timeline-item time {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  padding-top: 2px;
+  text-align: right;
+}
+
+.timeline-kind {
+  display: inline-block;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+
+.timeline-title {
+  color: var(--heading);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.timeline-detail {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.badge-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.badge {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-small);
+  padding: 12px 14px;
+  background: var(--surface-raised);
+}
+
+.badge.unlocked {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: linear-gradient(160deg, var(--accent-soft), var(--surface-raised) 70%);
+}
+
+.badge.locked {
+  opacity: 0.72;
+}
+
+.badge-name {
+  color: var(--heading);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.badge-description,
+.badge-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.badge-progress {
+  height: 4px;
+  margin-top: 8px;
+  border-radius: 2px;
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+
+.badge-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.journey-matches {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.journey-matches li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 14px;
+}
+
+.journey-match-note {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1050px) {
+  .cards.journey-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .cards.journey-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .timeline::before {
+    left: 6px;
+  }
+  .timeline-item {
+    grid-template-columns: 1fr;
+    gap: 2px;
+    padding-left: 24px;
+  }
+  .timeline-item::before {
+    left: 1px;
+    top: 14px;
+  }
+  .timeline-item time {
+    text-align: left;
+  }
+  .badge-grid {
+    grid-template-columns: 1fr;
+  }
+}

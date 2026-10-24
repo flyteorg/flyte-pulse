@@ -310,3 +310,56 @@ fn page_paths_and_stable_ids() {
     let companies = get(&data, "/api/companies?days=all&repository=github/flyteorg/flyte&target_branch=main");
     assert_eq!(companies["filters"]["repository"], "github/flyteorg/flyte");
 }
+
+#[test]
+fn contributor_journey() {
+    let data = dataset();
+    let journey = get(&data, "/api/users/github/alice/journey");
+    assert_eq!(journey["contributor"]["id"], "github/alice");
+    assert_eq!(journey["span"]["first_date"], "2026-10-01");
+    assert_eq!(journey["span"]["last_date"], "2026-10-05", "her last review");
+    assert_eq!(journey["totals"]["pull_requests_merged"], 1);
+    assert_eq!(journey["totals"]["reviews"], 2);
+    assert_eq!(journey["totals"]["repositories"], 2);
+    // Only ranks worth showing are reported; Alice leads every metric here.
+    assert_eq!(journey["ranks"]["pull_requests_merged"]["tier"], "#1");
+    assert_eq!(journey["ranks"]["reviews"]["of"], 2);
+    let bob = get(&data, "/api/users/github/bob/journey");
+    assert!(bob["ranks"].get("reviews").is_none(), "second of two is not a tier: {}", bob["ranks"]);
+    assert!(bob["ranks"].get("pull_requests_merged").is_none(), "no merged pull requests, no rank");
+    assert_eq!(bob["ranks"]["commits"]["tier"], "#1", "a tie shares the rank");
+
+    let titles: Vec<(&str, &str)> = journey["timeline"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| (e["date"].as_str().unwrap(), e["title"].as_str().unwrap()))
+        .collect();
+    assert_eq!(titles[0], ("2026-10-01", "First contribution to flyteorg/flyte"));
+    assert!(titles.contains(&("2026-10-01", "First pull request opened")));
+    assert!(titles.contains(&("2026-10-01", "First AI-assisted commit")));
+    assert!(titles.contains(&("2026-10-02", "First pull request merged")));
+    assert!(titles.contains(&("2026-10-03", "First pull request reviewed")));
+    assert!(titles.contains(&("2026-10-05", "First contribution to flyteorg/flytekit")), "{titles:?}");
+    assert_eq!(titles.last().unwrap(), &("2026-10-05", "Latest recorded activity"));
+    assert!(titles.windows(2).all(|w| w[0].0 <= w[1].0), "oldest first");
+    let merged =
+        journey["timeline"].as_array().unwrap().iter().find(|e| e["title"] == "First pull request merged").unwrap();
+    assert_eq!(merged["url"], "https://github.com/flyteorg/flyte/pull/1");
+
+    let badge =
+        |key: &str| journey["achievements"].as_array().unwrap().iter().find(|a| a["key"] == key).unwrap().clone();
+    assert_eq!(badge("first_merge")["unlocked_at"], "2026-10-02");
+    assert_eq!(badge("ai_pioneer")["unlocked"], true);
+    assert_eq!(badge("century")["unlocked"], false);
+    assert_eq!(badge("century")["value"], 1);
+    assert_eq!(badge("century")["target"], 100);
+    assert_eq!(badge("repositories_3")["value"], 2);
+    assert_eq!(badge("early_adopter")["unlocked"], false);
+
+    assert_eq!(journey["monthly"][0]["date"], "2026-10");
+    assert_eq!(journey["highlights"]["busiest_month"]["month"], "2026-10");
+    assert_eq!(journey["highlights"]["longest_streak"]["months"], 1);
+    assert_eq!(get(&data, "/api/users/github%3A1/journey")["contributor"]["id"], "github/alice");
+    assert_eq!(data.request("/api/users/github/nobody/journey", today()).unwrap_err().status, 404);
+}
