@@ -377,6 +377,7 @@ function userDetailPage(data) {
       ],
       { pending: !historyLoaded && !historyFailed },
     ) +
+    activityPanel(data.daily) +
     `<section class="page-grid">${repositoryShare(
       "contributor-repositories",
       data.repository_activity || [],
@@ -395,8 +396,7 @@ function userDetailPage(data) {
       data.languages,
       "Languages of the repositories this person committed to, weighted by their commits in each · selected time range",
     ) +
-    historyPanels +
-    activityPanel(data.daily)
+    historyPanels
   );
 }
 
