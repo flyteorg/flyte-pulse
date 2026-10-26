@@ -22,7 +22,7 @@ import {
   loadCompanyShare,
 } from "./companies.js";
 import { activityPanel, languagePanel, sharePie } from "./components/charts.js";
-import { bindJourneySearch, journeyHref, journeyLanding, journeyPage } from "./journey.js";
+import { contributorTabs, journeyPage } from "./journey.js";
 import {
   bindFilters,
   filterBar,
@@ -360,7 +360,8 @@ function userDetailPage(data) {
     : pendingPanel("Added lines by AI provider", historyFailed);
   return (
     pageHead(user.name, `${user.kind.toLowerCase()} identity · ${user.kind_source.toLowerCase()}`) +
-    `<section class="panel page-section"><div class="page-copy">${profile} · <a class="data-link" href="${journeyHref(user.id)}">Journey</a>${companyProfile(user)}</div></section>` +
+    contributorTabs(user.id, "activity") +
+    `<section class="panel page-section"><div class="page-copy">${profile}${companyProfile(user)}</div></section>` +
     contributorFilters(data) +
     `<p class="notice">Each merged PR’s full line diff is shared with its author and recognized co-authors. Contributor totals overlap.</p>` +
     stats(
@@ -681,11 +682,6 @@ export async function loadBrowsePage(route, requestId) {
     content.innerHTML = repositoryDetailPage(data);
     bindRepositoryFilters(id);
     void loadRepositoryCompanyShare(id, data.filters);
-  } else if (section === "journey") {
-    data = await getJson("/api/users");
-    if (stale()) return;
-    content.innerHTML = journeyLanding(data, params);
-    bindJourneySearch(data);
   } else if (journey) {
     data = await getJson(`/api/users/${encodePath(id)}/journey`);
     if (stale()) return;
@@ -730,8 +726,6 @@ export async function loadBrowsePage(route, requestId) {
     if (params.get("section") === "new-contributors") {
       document.getElementById("new-contributors").scrollIntoView();
     }
-  } else if (section === "journey") {
-    document.getElementById("page-stamp").textContent = "All recorded activity";
   } else {
     document.getElementById("page-stamp").textContent = "Last 365 days unless noted";
   }

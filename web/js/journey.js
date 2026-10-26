@@ -1,5 +1,5 @@
 // Journey: one contributor's history from first contribution to latest activity, with
-// milestones and achievements, and a landing page to find a contributor.
+// milestones and achievements. It is the second tab of the contributor page.
 
 import {
   encodePath,
@@ -12,69 +12,14 @@ import {
   stats,
 } from "./common.js";
 import { activityPanel } from "./components/charts.js";
-import { searchField, setParam, textMatches } from "./components/controls.js";
 import { achievementGrid, timeline } from "./components/timeline.js";
-import { currentRoute, replaceParams } from "./route.js";
 
-const MAX_MATCHES = 25;
-
-export function journeyHref(id) {
-  return `#/users/${encodePath(id)}/journey`;
-}
-
-function matches(users, query) {
-  const needle = query.trim();
-  if (!needle) return [];
-  return users
-    .filter((user) => textMatches(needle, [user.name || "", user.login || ""]))
-    .sort((a, b) => (b.pull_requests_merged || 0) - (a.pull_requests_merged || 0))
-    .slice(0, MAX_MATCHES);
-}
-
-function matchList(users, query) {
-  const rows = matches(users, query);
-  if (!query.trim())
-    return `<p class="subtitle">Type a name or GitHub login to find a journey.</p>`;
-  if (!rows.length)
-    return `<div class="empty">No contributor matches “${escapeHtml(query.trim())}”.</div>`;
-  return `<ul class="journey-matches">${rows
-    .map(
-      (user) =>
-        `<li><a class="data-link" href="${journeyHref(user.id)}">${escapeHtml(user.name || user.login)}</a>${user.login && user.name ? `<span class="user-alias">@${escapeHtml(user.login)}</span>` : ""}<span class="journey-match-note">${number.format(user.pull_requests_merged || 0)} merged PRs</span></li>`,
-    )
-    .join("")}</ul>`;
-}
-
-// `data` is the contributor directory (`/api/users`).
-export function journeyLanding(data, params) {
-  const query = params.get("q") || "";
-  return (
-    pageHead(
-      "Journey",
-      "One contributor's path through Flyte: first contribution, milestones, achievements, and activity over the years.",
-    ) +
-    panel({
-      title: "Find a contributor",
-      body:
-        searchField({
-          id: "journey-search",
-          label: "Contributor",
-          placeholder: "Name or GitHub login",
-          value: query,
-        }) + `<div id="journey-matches">${matchList(data.users || [], query)}</div>`,
-    })
-  );
-}
-
-export function bindJourneySearch(data) {
-  const input = document.getElementById("journey-search");
-  input.addEventListener("input", () => {
-    document.getElementById("journey-matches").innerHTML = matchList(data.users || [], input.value);
-    const params = currentRoute().params;
-    setParam(params, "q", input.value.trim());
-    replaceParams(params);
-  });
-  input.focus();
+// The tab bar under a contributor's page title; `active` is "activity" or "journey".
+export function contributorTabs(id, active) {
+  const base = `#/users/${encodePath(id)}`;
+  const tab = (href, key, label) =>
+    `<a href="${href}"${active === key ? ' aria-current="page"' : ""}>${label}</a>`;
+  return `<nav class="page-tabs" aria-label="Contributor views">${tab(base, "activity", "Activity")}${tab(`${base}/journey`, "journey", "Journey")}</nav>`;
 }
 
 function tenure(span) {
@@ -140,8 +85,9 @@ export function journeyPage(data) {
   const totals = { ...data.totals, active_months: data.span.active_months };
   const unlocked = (data.achievements || []).filter((badge) => badge.unlocked).length;
   return (
-    pageHead(`${user.name}'s journey`, tenure(data.span)) +
-    `<section class="panel page-section journey-intro"><div class="page-copy">${profile} · ${link(`/users/${user.id}`, "Contributor page")}</div>${affiliationStrip(user.affiliation_history)}</section>` +
+    pageHead(user.name, tenure(data.span)) +
+    contributorTabs(user.id, "journey") +
+    `<section class="panel page-section journey-intro"><div class="page-copy">${profile}</div>${affiliationStrip(user.affiliation_history)}</section>` +
     stats(
       totals,
       [

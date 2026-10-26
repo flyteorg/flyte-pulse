@@ -74,12 +74,11 @@ async function render({ preserveScroll = false } = {}) {
   const route = currentRoute();
   const section = route.parts[0] || "";
   const scrollY = window.scrollY;
-  const journey = section === "users" && route.parts.at(-1) === "journey";
   errorBox.style.display = "none";
   errorBox.textContent = "";
   document.getElementById("page-loading-status").hidden = true;
-  updateNav(journey ? "journey" : section);
-  document.title = section ? `Flyte Pulse · ${journey ? "journey" : section}` : "Flyte Pulse";
+  updateNav(section);
+  document.title = section ? `Flyte Pulse · ${section}` : "Flyte Pulse";
   if (!section) {
     content.setAttribute("aria-busy", "false");
     cleanupPage = mountOverview(content);

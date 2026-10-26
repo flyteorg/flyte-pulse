@@ -20,7 +20,7 @@ day from public GitHub activity.
   activity: tenure and affiliations, all-time totals, activity by month, a timeline of
   firsts and milestones (first merged pull request, 100 merged pull requests, first
   contribution to each repository, anniversaries), and achievements with the date each
-  was unlocked. Reach it from a contributor's page or from the Journey search.
+  was unlocked. It is the Journey tab of a contributor's page.
 - **Companies**: contributions credited to each company and the people affiliated
   with it.
 - **AI Activity**: AI authorship and assistance found in commit trailers and AI

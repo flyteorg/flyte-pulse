@@ -1451,7 +1451,39 @@ tbody tr:hover td {
   }
 }
 
-/* Journey */
+/* Contributor tabs and journey */
+
+.page-tabs {
+  display: flex;
+  gap: 4px;
+  margin: -6px 0 18px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.page-tabs a {
+  padding: 10px 16px;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.page-tabs a:hover {
+  color: var(--heading);
+}
+
+.page-tabs a[aria-current="page"] {
+  color: var(--heading);
+  border-bottom-color: var(--accent);
+}
+
+.page-tabs a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-small);
+}
 
 .journey-intro .page-copy {
   margin-bottom: 10px;
@@ -1660,28 +1692,6 @@ tbody tr:hover td {
   display: block;
   height: 100%;
   background: var(--accent);
-}
-
-.journey-matches {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-}
-
-.journey-matches li {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 8px 0;
-  border-top: 1px solid var(--border-subtle);
-  font-size: 14px;
-}
-
-.journey-match-note {
-  margin-left: auto;
-  color: var(--muted);
-  font-size: 12px;
-  white-space: nowrap;
 }
 
 @media (max-width: 1050px) {
