@@ -1450,3 +1450,224 @@ tbody tr:hover td {
     grid-template-columns: 1fr;
   }
 }
+
+/* Contributor tabs and journey */
+
+.page-tabs {
+  display: flex;
+  gap: 4px;
+  margin: -6px 0 18px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.page-tabs a {
+  padding: 10px 16px;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.page-tabs a:hover {
+  color: var(--heading);
+}
+
+.page-tabs a[aria-current="page"] {
+  color: var(--heading);
+  border-bottom-color: var(--accent);
+}
+
+.page-tabs a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-small);
+}
+
+.journey-grid {
+  align-items: start;
+}
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 4px;
+  position: relative;
+}
+
+.timeline::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 112px;
+  width: 2px;
+  background: var(--border);
+}
+
+.timeline-item {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 26px;
+  padding: 10px 0;
+  position: relative;
+}
+
+.timeline-item::before {
+  content: "";
+  position: absolute;
+  left: 103px;
+  top: 16px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--muted);
+  box-sizing: border-box;
+}
+
+.timeline-item.kind-milestone::before,
+.timeline-item.kind-record::before {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.timeline-item.kind-first::before,
+.timeline-item.kind-anniversary::before {
+  border-color: var(--highlight);
+  background: color-mix(in srgb, var(--highlight) 25%, var(--surface));
+}
+
+.timeline-item time {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  padding-top: 2px;
+  text-align: right;
+}
+
+.timeline-kind {
+  display: inline-block;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+
+.timeline-title {
+  color: var(--heading);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.timeline-detail {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.badge-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.badge {
+  display: flex;
+  gap: 12px;
+  align-items: start;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-small);
+  padding: 12px 14px;
+  background: var(--surface-raised);
+}
+
+.badge-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.badge-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface-hover);
+  color: var(--muted);
+}
+
+.badge.unlocked .badge-icon {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.badge-glyph {
+  width: 22px;
+  height: 22px;
+}
+
+.badge.unlocked {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: linear-gradient(160deg, var(--accent-soft), var(--surface-raised) 70%);
+}
+
+.badge.locked {
+  opacity: 0.72;
+}
+
+.badge-name {
+  color: var(--heading);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.badge-description,
+.badge-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.badge-progress {
+  height: 4px;
+  margin-top: 8px;
+  border-radius: 2px;
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+
+.badge-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+@media (max-width: 700px) {
+  .timeline::before {
+    left: 6px;
+  }
+  .timeline-item {
+    grid-template-columns: 1fr;
+    gap: 2px;
+    padding-left: 24px;
+  }
+  .timeline-item::before {
+    left: 1px;
+    top: 14px;
+  }
+  .timeline-item time {
+    text-align: left;
+  }
+  .badge-grid {
+    grid-template-columns: 1fr;
+  }
+}

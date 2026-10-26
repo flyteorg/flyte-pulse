@@ -22,6 +22,7 @@ import {
   loadCompanyShare,
 } from "./companies.js";
 import { activityPanel, languagePanel, sharePie } from "./components/charts.js";
+import { contributorTabs, journeyPage } from "./journey.js";
 import {
   bindFilters,
   filterBar,
@@ -359,6 +360,7 @@ function userDetailPage(data) {
     : pendingPanel("Added lines by AI provider", historyFailed);
   return (
     pageHead(user.name, `${user.kind.toLowerCase()} identity · ${user.kind_source.toLowerCase()}`) +
+    contributorTabs(user.id, "activity") +
     `<section class="panel page-section"><div class="page-copy">${profile}${companyProfile(user)}</div></section>` +
     contributorFilters(data) +
     `<p class="notice">Each merged PR’s full line diff is shared with its author and recognized co-authors. Contributor totals overlap.</p>` +
@@ -375,6 +377,7 @@ function userDetailPage(data) {
       ],
       { pending: !historyLoaded && !historyFailed },
     ) +
+    activityPanel(data.daily) +
     `<section class="page-grid">${repositoryShare(
       "contributor-repositories",
       data.repository_activity || [],
@@ -393,8 +396,7 @@ function userDetailPage(data) {
       data.languages,
       "Languages of the repositories this person committed to, weighted by their commits in each · selected time range",
     ) +
-    historyPanels +
-    activityPanel(data.daily)
+    historyPanels
   );
 }
 
@@ -661,7 +663,8 @@ export async function loadBrowsePage(route, requestId) {
   const { parts, params } = route;
   const section = parts[0] || "";
   // Page paths span several segments: #/users/github/octocat, #/repositories/github/owner/name.
-  const id = parts.slice(1).join("/");
+  const journey = section === "users" && parts.length > 2 && parts.at(-1) === "journey";
+  const id = (journey ? parts.slice(1, -1) : parts.slice(1)).join("/");
   const stale = () => requestId !== page.requestId;
   const withDays = () => {
     const query = new URLSearchParams(params);
@@ -679,6 +682,10 @@ export async function loadBrowsePage(route, requestId) {
     content.innerHTML = repositoryDetailPage(data);
     bindRepositoryFilters(id);
     void loadRepositoryCompanyShare(id, data.filters);
+  } else if (journey) {
+    data = await getJson(`/api/users/${encodePath(id)}/journey`);
+    if (stale()) return;
+    content.innerHTML = journeyPage(data);
   } else if (section === "users" && !id) {
     data = await getJson("/api/users");
     if (stale()) return;
@@ -706,7 +713,9 @@ export async function loadBrowsePage(route, requestId) {
   } else {
     throw new Error("Page not found");
   }
-  if (
+  if (journey) {
+    document.getElementById("page-stamp").textContent = "All recorded activity";
+  } else if (
     section === "companies" ||
     (id && ["repositories", "users", "ai-contributors"].includes(section))
   ) {

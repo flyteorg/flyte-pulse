@@ -4,6 +4,7 @@
 mod activity;
 mod ai;
 mod company;
+mod journey;
 mod languages;
 mod people;
 
@@ -333,6 +334,12 @@ impl Dataset {
                     .ok_or_else(|| ApiError::new(404, "Repository not found"))
             }
             ["api", "users"] => Ok(view.contributor_index()),
+            ["api", "users", id, "journey"] if is_id(id) => {
+                view.contributor_journey(id).ok_or_else(|| ApiError::new(404, "Contributor not found"))
+            }
+            ["api", "users", provider, login, "journey"] => view
+                .contributor_journey(&format!("{provider}/{login}"))
+                .ok_or_else(|| ApiError::new(404, "Contributor not found")),
             ["api", "users", id] | ["api", "users", id, "history"] if is_id(id) => {
                 let days = parse_days(params.get_or("days", "365"))?;
                 view.contributor_detail(id, days, params.repository(), segments.len() == 4)
