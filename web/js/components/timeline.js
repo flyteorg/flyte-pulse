@@ -1,6 +1,7 @@
 // A dated, vertical list of events, oldest first, and a grid of achievement badges.
 
 import { escapeHtml, externalLink } from "../common.js";
+import { badgeIcon } from "./icons.js";
 
 const KIND_LABELS = {
   first: "First",
@@ -45,7 +46,7 @@ export function achievementGrid(achievements) {
       const when = badge.unlocked
         ? `<div class="badge-note">Unlocked ${escapeHtml(badge.unlocked_at || "")}</div>`
         : "";
-      return `<li class="badge${badge.unlocked ? " unlocked" : " locked"}" data-key="${escapeHtml(badge.key)}"><div class="badge-name">${escapeHtml(badge.name)}</div><div class="badge-description">${escapeHtml(badge.description)}</div>${when}${progress}</li>`;
+      return `<li class="badge${badge.unlocked ? " unlocked" : " locked"}" data-key="${escapeHtml(badge.key)}"><div class="badge-icon">${badgeIcon(badge.key)}</div><div class="badge-text"><div class="badge-name">${escapeHtml(badge.name)}</div><div class="badge-description">${escapeHtml(badge.description)}</div>${when}${progress}</div></li>`;
     })
     .join("");
   return `<ul class="badge-grid">${badges}</ul>`;

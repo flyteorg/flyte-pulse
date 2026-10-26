@@ -1590,10 +1590,40 @@ tbody tr:hover td {
 }
 
 .badge {
+  display: flex;
+  gap: 12px;
+  align-items: start;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-small);
   padding: 12px 14px;
   background: var(--surface-raised);
+}
+
+.badge-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.badge-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface-hover);
+  color: var(--muted);
+}
+
+.badge.unlocked .badge-icon {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.badge-glyph {
+  width: 22px;
+  height: 22px;
 }
 
 .badge.unlocked {
