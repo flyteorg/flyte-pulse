@@ -1485,49 +1485,6 @@ tbody tr:hover td {
   border-radius: var(--radius-small);
 }
 
-.journey-intro .page-copy {
-  margin-bottom: 10px;
-}
-
-.affiliation-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.affiliation-strip li {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-small);
-  background: var(--surface-raised);
-  font-size: 14px;
-  color: var(--heading);
-}
-
-.affiliation-strip li.current {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-}
-
-.affiliation-strip small {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.cards.journey-cards {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-}
-
-.journey-cards .card-note:not(:empty) {
-  color: var(--accent-text);
-  font-weight: 600;
-}
-
 .journey-grid {
   align-items: start;
 }
@@ -1694,16 +1651,7 @@ tbody tr:hover td {
   background: var(--accent);
 }
 
-@media (max-width: 1050px) {
-  .cards.journey-cards {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 700px) {
-  .cards.journey-cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .timeline::before {
     left: 6px;
   }

@@ -16,11 +16,10 @@ day from public GitHub activity.
   contributors and reviewers, companies, and recent pull requests.
 - **Contributors**: new and active contributors. Each person's page shows their
   activity, company affiliations, reviews, AI usage, pull requests, and commits.
-- **Journey**: one contributor's path from their first contribution to their latest
-  activity: tenure and affiliations, all-time totals, activity by month, a timeline of
-  firsts and milestones (first merged pull request, 100 merged pull requests, first
-  contribution to each repository, anniversaries), and achievements with the date each
-  was unlocked. It is the Journey tab of a contributor's page.
+- **Journey**: the second tab of a contributor's page: a timeline from their first
+  contribution to their latest activity (first merged pull request, 100 merged pull
+  requests, first contribution to each repository, anniversaries, affiliation changes)
+  and achievements with the date each was unlocked.
 - **Companies**: contributions credited to each company and the people affiliated
   with it.
 - **AI Activity**: AI authorship and assistance found in commit trailers and AI
