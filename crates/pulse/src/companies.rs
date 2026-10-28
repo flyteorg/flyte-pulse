@@ -43,15 +43,23 @@ struct AffiliationsFile {
     affiliations: Vec<AffiliationRow>,
 }
 
+/// One contributor and the companies their contributions are credited to.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct AffiliationRow {
     username: Option<String>,
     contributor_id: Option<String>,
-    company_id: Option<String>,
-    status: Option<String>,
-    valid_from: Option<serde_yaml_ng::Value>,
-    valid_until: Option<serde_yaml_ng::Value>,
+    companies: Vec<AffiliationPeriod>,
+}
+
+/// A company (or `independent`) and the days it covers; without `from` it covers
+/// every day no dated period covers.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AffiliationPeriod {
+    company: String,
+    from: Option<serde_yaml_ng::Value>,
+    until: Option<serde_yaml_ng::Value>,
 }
 
 static COMPANY_ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-z][a-z0-9_-]*$").unwrap());
@@ -274,6 +282,7 @@ pub fn load_company_catalog(config_dir: &Path, contributors: &[Contributor]) -> 
         }
     }
 
+    let mut seen: HashMap<String, usize> = HashMap::new();
     for (index, row) in affiliations_file.affiliations.into_iter().enumerate() {
         let context = format!("affiliations[{index}]");
         let contributor_id = match (&row.username, &row.contributor_id) {
@@ -301,47 +310,56 @@ pub fn load_company_catalog(config_dir: &Path, contributors: &[Contributor]) -> 
             }
             _ => bail!("{context}: specify exactly one of username or contributor_id"),
         };
-        let status = row.status.clone().unwrap_or_else(|| "AFFILIATED".to_string());
-        let company_id = row.company_id.clone().unwrap_or_default();
-        if status != "AFFILIATED" && status != "INDEPENDENT" {
-            bail!("{context}: status must be AFFILIATED or INDEPENDENT; omit unknown affiliations");
+        if let Some(previous) = seen.insert(contributor_id.clone(), index) {
+            bail!(
+                "{context}: {contributor_id} already has an entry (affiliations[{previous}]); list all of a person's companies in one entry"
+            );
         }
-        if (status == "AFFILIATED" && !catalog.by_id.contains_key(&company_id))
-            || (status != "AFFILIATED" && !company_id.is_empty())
-        {
-            bail!("{context}: invalid company for affiliation status");
+        if row.companies.is_empty() {
+            bail!("{context}: companies must list at least one company; omit people with no known affiliation");
         }
-        let start = row.valid_from.as_ref().map(|v| yaml_date(v, &format!("{context}.valid_from"))).transpose()?;
-        let end = match &row.valid_until {
-            Some(serde_yaml_ng::Value::Null) | None => None,
-            Some(value) => Some(yaml_date(value, &format!("{context}.valid_until"))?),
-        };
-        let start = start.unwrap_or_default();
-        let end = end.unwrap_or_default();
-        if !end.is_empty() && start.is_empty() {
-            bail!("{context}: valid_until requires valid_from");
-        }
-        if !end.is_empty() && start >= end {
-            bail!("{context}: valid_until must follow valid_from");
-        }
-        let affiliation = Affiliation {
-            contributor_id: contributor_id.clone(),
-            company_id,
-            status,
-            valid_from: start.clone(),
-            valid_until: end,
-            source: "CURATED".to_string(),
-            // Evidence lives in the reviewing PR; merging it establishes review.
-            reviewed: true,
-            ..Affiliation::default()
-        };
-        if start.is_empty() {
-            if catalog.current.contains_key(&contributor_id) {
-                bail!("{context}: duplicate undated affiliation for {contributor_id}");
+        for (period_index, period) in row.companies.into_iter().enumerate() {
+            let context = format!("{context}.companies[{period_index}]");
+            let company = period.company.trim().to_string();
+            let (status, company_id) = if company == "independent" {
+                ("INDEPENDENT", String::new())
+            } else if catalog.by_id.contains_key(&company) {
+                ("AFFILIATED", company)
+            } else {
+                bail!("{context}: unknown company {company:?}; add it to companies.yaml or use independent");
+            };
+            let start = period.from.as_ref().map(|v| yaml_date(v, &format!("{context}.from"))).transpose()?;
+            let end = match &period.until {
+                Some(serde_yaml_ng::Value::Null) | None => None,
+                Some(value) => Some(yaml_date(value, &format!("{context}.until"))?),
+            };
+            let start = start.unwrap_or_default();
+            let end = end.unwrap_or_default();
+            if !end.is_empty() && start.is_empty() {
+                bail!("{context}: until requires from");
             }
-            catalog.current.insert(contributor_id, affiliation);
-        } else {
-            catalog.periods.entry(contributor_id).or_default().push(affiliation);
+            if !end.is_empty() && start >= end {
+                bail!("{context}: until must follow from");
+            }
+            let affiliation = Affiliation {
+                contributor_id: contributor_id.clone(),
+                company_id,
+                status: status.to_string(),
+                valid_from: start.clone(),
+                valid_until: end,
+                source: "CURATED".to_string(),
+                // Evidence lives in the reviewing PR; merging it establishes review.
+                reviewed: true,
+                ..Affiliation::default()
+            };
+            if start.is_empty() {
+                if catalog.current.contains_key(&contributor_id) {
+                    bail!("{context}: a second company without dates; only one can cover all other days");
+                }
+                catalog.current.insert(contributor_id.clone(), affiliation);
+            } else {
+                catalog.periods.entry(contributor_id.clone()).or_default().push(affiliation);
+            }
         }
     }
     for (contributor_id, rows) in catalog.periods.iter_mut() {
@@ -378,7 +396,7 @@ mod tests {
         .unwrap();
         std::fs::write(
             dir.path().join("affiliations.yaml"),
-            "affiliations:\n- username: Alice\n  company_id: union\n- username: alice\n  company_id: lyft\n  valid_from: '2020-01-01'\n  valid_until: '2021-01-01'\n",
+            "affiliations:\n- username: Alice\n  companies:\n  - company: union\n  - company: lyft\n    from: '2020-01-01'\n    until: '2021-01-01'\n",
         )
         .unwrap();
         let catalog = load_company_catalog(dir.path(), &[contributor("github:1", "alice")]).unwrap();
@@ -402,7 +420,7 @@ mod tests {
         .unwrap();
         std::fs::write(
             dir.path().join("affiliations.yaml"),
-            "affiliations:\n- username: alice\n  company_id: union\n- username: alice\n  company_id: lyft\n  valid_from: '2020-01-01'\n  valid_until: '2021-01-01'\n- username: bob\n  company_id: union\n  valid_from: '2022-01-01'\n  valid_until: '2023-01-01'\n- username: bob\n  company_id: lyft\n  valid_from: '2023-01-01'\n",
+            "affiliations:\n- username: alice\n  companies:\n  - company: union\n  - company: lyft\n    from: '2020-01-01'\n    until: '2021-01-01'\n- username: bob\n  companies:\n  - company: union\n    from: '2022-01-01'\n    until: '2023-01-01'\n  - company: lyft\n    from: '2023-01-01'\n",
         )
         .unwrap();
         let people = [contributor("github:1", "alice"), contributor("github:2", "bob")];
@@ -412,6 +430,38 @@ mod tests {
         assert_eq!(catalog.maintainer_days("github:1"), [(i32::MIN, day("2020-01-01")), (day("2021-01-01"), i32::MAX)]);
         assert_eq!(catalog.maintainer_days("github:2"), [(day("2022-01-01"), day("2023-01-01"))]);
         assert!(catalog.maintainer_days("github:3").is_empty());
+    }
+
+    #[test]
+    fn one_entry_per_person_and_independent_periods() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("companies.yaml"),
+            "companies:\n- id: union\n  canonical_name: Union\n  website_url: https://union.ai\n",
+        )
+        .unwrap();
+        let people = [contributor("github:1", "alice")];
+        let load = |text: &str| {
+            std::fs::write(dir.path().join("affiliations.yaml"), text).unwrap();
+            load_company_catalog(dir.path(), &people)
+        };
+        let catalog = load(
+            "affiliations:\n- username: alice\n  companies:\n  - company: union\n  - company: independent\n    from: '2024-06-01'\n    until: '2025-01-01'\n",
+        )
+        .unwrap();
+        assert_eq!(catalog.historical("github:1", "2024-01-01"), "union");
+        assert_eq!(catalog.historical("github:1", "2024-06-01"), "");
+        assert_eq!(catalog.historical("github:1", "2025-01-01"), "union");
+
+        let duplicate = "affiliations:\n- username: alice\n  companies:\n  - company: union\n- username: Alice\n  companies:\n  - company: union\n    from: '2024-01-01'\n";
+        assert!(load(duplicate).unwrap_err().to_string().contains("already has an entry"));
+        let two_undated =
+            "affiliations:\n- username: alice\n  companies:\n  - company: union\n  - company: independent\n";
+        assert!(load(two_undated).unwrap_err().to_string().contains("second company without dates"));
+        let unknown = "affiliations:\n- username: alice\n  companies:\n  - company: acme\n";
+        assert!(load(unknown).unwrap_err().to_string().contains("unknown company"));
+        let empty = "affiliations:\n- username: alice\n  companies: []\n";
+        assert!(load(empty).unwrap_err().to_string().contains("at least one company"));
     }
 
     #[test]

@@ -95,33 +95,29 @@ request (see [below](#review-the-company-discovery-pull-request)).
 To set it directly, edit `config/affiliations.yaml`:
 
 ```yaml
-# Works at the company; an entry without dates applies to all activity
 - username: octocat
-  company_id: union
-
-# Changed jobs: dated entries
-- username: octocat
-  company_id: lyft
-  valid_from: '2019-01-01'
-  valid_until: '2022-03-01'
-- username: octocat
-  company_id: union
-  valid_from: '2022-03-01'
-
-# Independent during a period
-- username: octocat
-  status: INDEPENDENT
-  valid_from: '2024-06-01'
+  companies:
+  - company: union                # no dates: every day the periods below don't cover
+  - company: lyft                 # a period: from is included, until is not
+    from: '2019-01-01'
+    until: '2022-03-01'
+  - company: independent          # no company from this day on
+    from: '2024-06-01'
 ```
 
-- An entry without `valid_from` covers every day that no dated entry covers.
-- `valid_from` is included and `valid_until` is not (UTC days). A person's dated
-  entries cannot overlap, and `valid_until` needs a `valid_from`.
-- `company_id` must exist in `config/companies.yaml` (see the next section).
+- One entry per person, listing every company their contributions are credited to.
+  A company without `from` covers every day that no dated period covers; a person
+  can have one such company.
+- `from` is included and `until` is not (UTC days). Periods cannot overlap, and
+  `until` needs a `from`. The dates bound the credited contributions; they are not
+  a claim about employment dates.
+- `company` must be an `id` in `config/companies.yaml` (see the next section), or
+  `independent`.
 - Usernames ignore case. If a username is ambiguous or was renamed, use
   `contributor_id: github:<numeric account ID>` instead.
-- Keep the file sorted by username (ignoring case), then by start date; CI checks
-  the order. With Rust installed, `cargo run -p pulse -- format-config` sorts it.
+- Keep the file sorted by username (ignoring case), and each person's companies by
+  start date; CI checks the order. With Rust installed,
+  `cargo run -p pulse -- format-config` sorts it.
 - Put the evidence in the pull request description, such as a profile, a company
   email domain in commits, or a public announcement.
 - If the person's GitHub profile names a different company, also add their username
