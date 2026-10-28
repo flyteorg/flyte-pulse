@@ -180,8 +180,9 @@ Dependabot opens one grouped pull request per week for each of Rust, JS, and
 GitHub Actions, proposing only releases that are at least 7 days old.
 
 Configuration rules checked by the tests: `companies.yaml` is sorted by company ID
-and `affiliations.yaml` by username (ignoring case), then start date. Run `pulse
-format-config` to sort both files; comments inside an entry move with it. Company and
+and `affiliations.yaml` by username (ignoring case), with each person's companies by
+start date. Run `pulse format-config` to sort both files; comments inside an entry
+move with it. Company and
 affiliation changes take effect on the next build; adding a repository takes effect on
 the next sync, which makes a full clone and collects all of its pull requests.
 

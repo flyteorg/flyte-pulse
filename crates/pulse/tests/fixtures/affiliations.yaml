@@ -1,3 +1,4 @@
 affiliations:
 - username: alice
-  company_id: union
+  companies:
+  - company: union

@@ -462,14 +462,17 @@ impl View<'_> {
         for row in &affiliation_history {
             let name = row["company_name"].as_str().unwrap_or_default();
             let independent = row["company_id"] == "independent";
+            // The start of each credited period; its end is not an event, since the
+            // dates bound the credited contributions, not the person's employment.
             if let Some(day) = row["valid_from"].as_str().and_then(crate::time::parse_date).filter(|&d| d <= today) {
-                let title = if independent { "Independent contributor".to_string() } else { format!("Joined {name}") };
-                events.push(Event::new(day, 7, "affiliation", title));
-            }
-            if let Some(day) = row["valid_until"].as_str().and_then(crate::time::parse_date).filter(|&d| d <= today)
-                && !independent
-            {
-                events.push(Event::new(day, 7, "affiliation", format!("Left {name}")));
+                let event = if independent {
+                    Event::new(day, 7, "affiliation", "Independent contributor")
+                        .detail("Contributions from this day are not credited to a company")
+                } else {
+                    Event::new(day, 7, "affiliation", format!("Contributing from {name}"))
+                        .detail(format!("Contributions from this day are credited to {name}"))
+                };
+                events.push(event);
             }
         }
 

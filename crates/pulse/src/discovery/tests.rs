@@ -25,12 +25,15 @@ const AFFILIATIONS: &str = "\
 # Reviewed affiliations.
 affiliations:
 - username: carol
-  # Curated by hand.
-  company_id: lyft
+  companies:
+  - company: lyft
+    # Curated by hand.
 - username: erin
-  company_id: union
+  companies:
+  - company: union
 - username: helper-bot
-  company_id: lyft
+  companies:
+  - company: lyft
 ";
 
 fn ts(value: &str) -> Option<Ts> {
@@ -238,28 +241,32 @@ companies:
 # Reviewed affiliations.
 affiliations:
 - username: alice
-  company_id: union
+  companies:
+  - company: union
 - username: bob
-  company_id: union
+  companies:
+  - company: union
 - username: carol
-  company_id: lyft
-  valid_from: '2025-06-01'
-  valid_until: '2026-03-08'
-- username: carol
-  # Curated by hand.
-  company_id: union
-  valid_from: '2026-03-08'
+  companies:
+  - company: lyft
+    from: '2025-06-01'
+    until: '2026-03-08'
+  - company: union
+    # Curated by hand.
+    from: '2026-03-08'
 - username: dave
-  company_id: acme-labs
+  companies:
+  - company: acme-labs
 - username: erin
-  company_id: lyft
-  valid_from: '2020-01-10'
-  valid_until: '2021-07-01'
-- username: erin
-  company_id: union
-  valid_from: '2021-07-01'
+  companies:
+  - company: lyft
+    from: '2020-01-10'
+    until: '2021-07-01'
+  - company: union
+    from: '2021-07-01'
 - username: helper-bot
-  company_id: lyft
+  companies:
+  - company: lyft
 "
     );
 

@@ -37,7 +37,8 @@ pub fn apply(discovery: &Discovery, config_dir: &Path, contributors: &[Contribut
         }
     }
 
-    let mut appended: Vec<Vec<String>> = Vec::new();
+    // Periods to add, by username; they join the person's entry or start a new one.
+    let mut appended: Vec<(String, Vec<String>)> = Vec::new();
     for change in &discovery.changes {
         affiliations.apply_change(change, &mut appended);
     }
@@ -45,16 +46,17 @@ pub fn apply(discovery: &Discovery, config_dir: &Path, contributors: &[Contribut
         affiliations.set_start(&start.login, &start.contributor_id, &start.company_id, &start.valid_from);
     }
     for affiliation in &discovery.affiliations {
-        appended.push(match &affiliation.valid_from {
-            Some(valid_from) => open_period(&affiliation.login, &affiliation.company_id, valid_from),
-            None => undated(&affiliation.login, &affiliation.company_id),
-        });
+        let period = match &affiliation.valid_from {
+            Some(valid_from) => open_period(&affiliation.company_id, valid_from),
+            None => undated(&affiliation.company_id),
+        };
+        appended.push((affiliation.login.clone(), period));
     }
     for period in &discovery.periods {
-        appended.push(dated(&period.login, &period.company_id, &period.valid_from, &period.valid_until));
+        appended.push((period.login.clone(), dated(&period.company_id, &period.valid_from, &period.valid_until)));
     }
-    for entry in appended {
-        affiliations.append(&entry);
+    for (login, period) in appended {
+        affiliations.append_period(&login, &period);
     }
     // New entries land in sorted position; the pull request describes them.
     let companies = sort_companies(&companies.text());
@@ -89,20 +91,19 @@ fn scalar(value: &str) -> String {
     if plain { value.to_string() } else { format!("'{}'", value.replace('\'', "''")) }
 }
 
-fn undated(login: &str, company_id: &str) -> Vec<String> {
-    vec![format!("- username: {login}"), format!("  company_id: {company_id}")]
+fn undated(company_id: &str) -> Vec<String> {
+    vec![format!("  - company: {company_id}")]
 }
 
-fn open_period(login: &str, company_id: &str, valid_from: &str) -> Vec<String> {
-    vec![format!("- username: {login}"), format!("  company_id: {company_id}"), format!("  valid_from: '{valid_from}'")]
+fn open_period(company_id: &str, valid_from: &str) -> Vec<String> {
+    vec![format!("  - company: {company_id}"), format!("    from: '{valid_from}'")]
 }
 
-fn dated(login: &str, company_id: &str, valid_from: &str, valid_until: &str) -> Vec<String> {
+fn dated(company_id: &str, valid_from: &str, valid_until: &str) -> Vec<String> {
     vec![
-        format!("- username: {login}"),
-        format!("  company_id: {company_id}"),
-        format!("  valid_from: '{valid_from}'"),
-        format!("  valid_until: '{valid_until}'"),
+        format!("  - company: {company_id}"),
+        format!("    from: '{valid_from}'"),
+        format!("    until: '{valid_until}'"),
     ]
 }
 
@@ -199,70 +200,135 @@ impl Lines {
         }
     }
 
-    /// Blocks for one contributor, matched by username or contributor ID.
-    fn contributor_blocks(&self, login: &str, contributor_id: &str) -> Vec<Block> {
-        self.blocks()
-            .into_iter()
-            .filter(|b| {
-                self.field(*b, "username").is_some_and(|u| u.trim_start_matches('@').eq_ignore_ascii_case(login))
-                    || self.field(*b, "contributor_id").as_deref() == Some(contributor_id)
-            })
-            .collect()
+    /// The entry of one contributor, matched by username or contributor ID.
+    fn contributor_block(&self, login: &str, contributor_id: &str) -> Option<Block> {
+        self.blocks().into_iter().find(|b| {
+            self.field(*b, "username").is_some_and(|u| u.trim_start_matches('@').eq_ignore_ascii_case(login))
+                || self.field(*b, "contributor_id").as_deref() == Some(contributor_id)
+        })
     }
 
-    /// Give a contributor's undated entry for `company_id` a start date.
+    /// The company periods of an entry: items of its `companies` list.
+    fn periods(&self, block: Block) -> Vec<Block> {
+        let mut periods = Vec::new();
+        let mut index = block.start;
+        while index < block.end {
+            if self.lines[index].starts_with("  - ") {
+                let start = index;
+                index += 1;
+                while index < block.end && self.lines[index].starts_with("    ") {
+                    index += 1;
+                }
+                periods.push(Block { start, end: index });
+            } else {
+                index += 1;
+            }
+        }
+        periods
+    }
+
+    /// The value of `key` in a period (`  - key: value` or `    key: value`).
+    fn period_field(&self, period: Block, key: &str) -> Option<String> {
+        self.lines[period.start..period.end].iter().find_map(|line| {
+            let line = line.strip_prefix("  - ").or_else(|| line.strip_prefix("    "))?;
+            line.strip_prefix(&format!("{key}:")).map(unquote)
+        })
+    }
+
+    fn period_field_line(&self, period: Block, key: &str) -> Option<usize> {
+        (period.start..period.end).find(|&i| {
+            let line = &self.lines[i];
+            let line = line.strip_prefix("  - ").or_else(|| line.strip_prefix("    ")).unwrap_or(line);
+            line.starts_with(&format!("{key}:"))
+        })
+    }
+
+    /// Add a period to a contributor's entry, creating the entry when it is missing.
+    fn append_period(&mut self, login: &str, period: &[String]) {
+        match self.contributor_block(login, "") {
+            Some(block) => {
+                let end = self.periods(block).last().map_or(block.end, |p| p.end);
+                if self.field_line(block, "companies").is_none() {
+                    self.lines.insert(end, "  companies:".to_string());
+                    self.lines.splice(end + 1..end + 1, period.iter().cloned());
+                } else {
+                    self.lines.splice(end..end, period.iter().cloned());
+                }
+            }
+            None => {
+                let mut entry = vec![format!("- username: {login}"), "  companies:".to_string()];
+                entry.extend(period.iter().cloned());
+                self.append(&entry);
+            }
+        }
+    }
+
+    /// Give a contributor's undated period for `company_id` a start date.
     fn set_start(&mut self, login: &str, contributor_id: &str, company_id: &str, valid_from: &str) {
-        let block = self.contributor_blocks(login, contributor_id).into_iter().find(|b| {
-            self.field(*b, "valid_from").is_none() && self.field(*b, "company_id").as_deref() == Some(company_id)
+        let Some(block) = self.contributor_block(login, contributor_id) else { return };
+        let period = self.periods(block).into_iter().find(|p| {
+            self.period_field(*p, "from").is_none() && self.period_field(*p, "company").as_deref() == Some(company_id)
         });
-        if let Some(block) = block {
-            let line = self.field_line(block, "company_id").unwrap_or(block.start);
-            self.lines.insert(line + 1, format!("  valid_from: '{valid_from}'"));
+        if let Some(period) = period {
+            self.lines.insert(period.end, format!("    from: '{valid_from}'"));
         }
     }
 
     /// End the current affiliation on the change date and start the new one.
-    fn apply_change(&mut self, change: &Change, appended: &mut Vec<Vec<String>>) {
-        let blocks = self.contributor_blocks(&change.login, &change.contributor_id);
-        let has_undated = blocks.iter().any(|b| self.field(*b, "valid_from").is_none());
-        let open = blocks.iter().copied().find(|b| {
-            self.field(*b, "valid_from").is_some_and(|from| from <= change.date)
-                && self.field(*b, "valid_until").is_none()
+    fn apply_change(&mut self, change: &Change, appended: &mut Vec<(String, Vec<String>)>) {
+        let Some(block) = self.contributor_block(&change.login, &change.contributor_id) else {
+            if !change.to.is_empty() {
+                appended.push((change.login.clone(), open_period(&change.to, &change.date)));
+            }
+            return;
+        };
+        let periods = self.periods(block);
+        let has_undated = periods.iter().any(|p| self.period_field(*p, "from").is_none());
+        let open = periods.iter().copied().find(|p| {
+            self.period_field(*p, "from").is_some_and(|from| from <= change.date)
+                && self.period_field(*p, "until").is_none()
         });
         // The old company's dated period starts after any earlier period ends.
-        let earlier_end = blocks
+        let earlier_end = periods
             .iter()
-            .filter_map(|b| self.field(*b, "valid_until"))
+            .filter_map(|p| self.period_field(*p, "until"))
             .filter(|until| *until <= change.date)
             .max()
             .unwrap_or_default();
 
-        if let Some(block) = open {
-            let line = self.field_line(block, "valid_from").unwrap_or(block.end - 1);
-            self.lines.insert(line + 1, format!("  valid_until: '{}'", change.date));
+        if let Some(period) = open {
+            let line = self.period_field_line(period, "from").unwrap_or(period.end - 1);
+            self.lines.insert(line + 1, format!("    until: '{}'", change.date));
         } else if !change.from.is_empty() && has_undated {
             let start = std::cmp::max(change.first_activity.clone(), earlier_end);
             if !start.is_empty() && start < change.date {
-                appended.push(dated(&change.login, &change.from, &start, &change.date));
+                appended.push((change.login.clone(), dated(&change.from, &start, &change.date)));
             }
         }
 
-        // The undated entry for the old company becomes the new company's open-ended
+        // The undated period for the old company becomes the new company's open-ended
         // period. Re-find it: the insert above may have shifted lines.
-        let blocks = self.contributor_blocks(&change.login, &change.contributor_id);
-        let current = blocks.iter().copied().find(|b| {
-            self.field(*b, "valid_from").is_none() && self.field(*b, "company_id").unwrap_or_default() == change.from
+        let Some(block) = self.contributor_block(&change.login, &change.contributor_id) else { return };
+        let periods = self.periods(block);
+        let current = periods.iter().copied().find(|p| {
+            self.period_field(*p, "from").is_none()
+                && self.period_field(*p, "company").unwrap_or_default() == change.from
         });
         match (current, change.to.is_empty()) {
-            (Some(block), false) => {
-                let line = self.field_line(block, "company_id").unwrap_or(block.start);
-                self.lines[line] = format!("  company_id: {}", change.to);
-                self.lines.insert(line + 1, format!("  valid_from: '{}'", change.date));
+            (Some(period), false) => {
+                let line = self.period_field_line(period, "company").unwrap_or(period.start);
+                self.lines[line] = format!("  - company: {}", change.to);
+                self.lines.insert(period.end, format!("    from: '{}'", change.date));
             }
-            (Some(block), true) => {
-                self.lines.drain(block.start..block.end);
+            (Some(period), true) => {
+                if periods.len() == 1 {
+                    // An entry needs at least one company; drop the whole entry.
+                    self.lines.drain(block.start..block.end);
+                } else {
+                    self.lines.drain(period.start..period.end);
+                }
             }
-            (None, false) => appended.push(open_period(&change.login, &change.to, &change.date)),
+            (None, false) => appended.push((change.login.clone(), open_period(&change.to, &change.date))),
             (None, true) => {}
         }
     }
