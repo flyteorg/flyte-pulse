@@ -12,8 +12,9 @@ day from public GitHub activity.
   contributor, top reviewer, most used AI model), totals for the selected time range
   and repository, activity over time, ranked contributor lists, repository and company
   shares, code review coverage, and the languages in use.
-- **Repositories**: every tracked repository and branch, with its activity, top
-  contributors and reviewers, companies, and recent pull requests.
+- **Repositories**: every tracked repository and branch, with its activity, open and
+  stale pull request counts, top contributors and reviewers, companies, and its recent
+  and open pull requests, most recently active first.
 - **Contributors**: new and active contributors. Each person's page shows their
   activity, company affiliations, reviews, AI usage, pull requests, and commits.
 - **Journey**: the second tab of a contributor's page: a timeline from their first
@@ -50,6 +51,9 @@ shared as a link.
   Review coverage is the share of merged pull requests that someone other than the
   author reviewed before the merge; time to first review runs from opening,
   including time as a draft.
+- An open pull request is stale after 60 days without activity: no push, comment,
+  review, label, or other change GitHub records as an update. Drafts count too. Pull
+  request tables mark it stale, and their State filter has a "stale" choice.
 - A new contributor made their first recorded contribution in the selected range.
 - Each contribution is credited to the company the person was affiliated with on
   that day, as recorded in `config/affiliations.yaml`. Without an affiliation it

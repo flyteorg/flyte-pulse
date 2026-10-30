@@ -301,6 +301,7 @@ pub fn build_snapshot(state: &State, companies: &CompanyCatalog, generated_at: i
             commit_count: pr.commit_count,
             author_ai_identity,
             author_provider_identity,
+            updated_at: pr.updated_at.map(|t| t.0),
         });
     }
 

@@ -11,6 +11,9 @@ use super::{Dataset, Ordered, Totals, View, day_of, days_value, fold, in_range, 
 use crate::snapshot::{MetricKind, NONE, Pr};
 use crate::time::format_date;
 
+/// Days without activity after which an open pull request counts as stale.
+pub(crate) const STALE_AFTER_DAYS: i32 = 60;
+
 /// Which metric rows make up the "snapshot" a query sees. Repository pages use
 /// their repository's (and branch's) rows only, which also bound "all" dates.
 #[derive(Clone, Copy)]
@@ -98,7 +101,17 @@ impl Dataset {
         (merged, hours.len() as i64, median.map(|h| (h * 10.0).round() / 10.0))
     }
 
-    pub(crate) fn pull_request_view(&self, index: u32) -> Value {
+    /// The day of a pull request's latest activity: its last update, else its creation.
+    pub(crate) fn last_activity_day(pr: &Pr) -> Option<i32> {
+        day_of(pr.updated_at.or(pr.created_at))
+    }
+
+    /// An open pull request without activity for `STALE_AFTER_DAYS` days.
+    pub(crate) fn is_stale(pr: &Pr, today: i32) -> bool {
+        pr.state == "open" && Self::last_activity_day(pr).is_some_and(|day| today - day >= STALE_AFTER_DAYS)
+    }
+
+    pub(crate) fn pull_request_view(&self, index: u32, today: i32) -> Value {
         let pr = &self.snapshot.pull_requests[index as usize];
         let author_id = self.key_path(pr.author);
         json!({
@@ -110,6 +123,8 @@ impl Dataset {
             "state": if pr.state.is_empty() { "unknown" } else { pr.state.as_str() },
             "created_at": iso(pr.created_at),
             "merged_at": iso(pr.merged_at),
+            "updated_at": iso(pr.updated_at.or(pr.created_at)),
+            "stale": Self::is_stale(pr, today),
             "target_branch": self.branch(pr.branch),
             "author_id": author_id,
             "author_name": self.name_or(pr.author, author_id),
@@ -413,12 +428,23 @@ impl View<'_> {
         for (index, repo) in data.snapshot.repositories.iter().enumerate() {
             for branch in repo.branch_views() {
                 let activity = self.dashboard(Scope::All, Some(365), Some(&repo.id), branch.map(|b| b.name.as_str()));
+                let branch_index = branch.map(|b| data.branch_filter(&b.name));
+                let open_counts = data
+                    .snapshot
+                    .pull_requests
+                    .iter()
+                    .filter(|pr| {
+                        pr.repo == index as u32 && pr.state == "open" && branch_index.is_none_or(|b| pr.branch == b)
+                    })
+                    .fold((0, 0), |(open, stale), pr| (open + 1, stale + i64::from(Dataset::is_stale(pr, self.today))));
                 output.push(json!({
                     "id": data.repo_path(index as u32),
                     "name": data.repository_label(index as u32, branch.map(|b| (b.name.as_str(), b.label.as_str()))),
                     "target_branch": branch.map_or("", |b| b.name.as_str()),
                     "branch_label": branch.map_or("", |b| b.label.as_str()),
                     "branches": data.branch_names(index as u32, branch.map(|b| b.name.as_str())),
+                    "open_pull_requests": open_counts.0,
+                    "stale_pull_requests": open_counts.1,
                     "status": repo.status_label(),
                     "summary": activity["summary"],
                 }));
@@ -439,20 +465,27 @@ impl View<'_> {
         };
         let activity = self.dashboard(scope, days, Some(id), target_branch);
         let start = days.map(|d| self.today - (d - 1));
-        let recent: Vec<Value> = data
+        let pr_at = |i: u32| &data.snapshot.pull_requests[i as usize];
+        let in_scope = |i: u32| pr_at(i).repo == repo_index && branch_index.is_none_or(|b| pr_at(i).branch == b);
+        // The 50 newest pull requests opened or merged in the range, and every open one, so
+        // stale pull requests are listed whatever the range; most recently active first.
+        let mut shown: Vec<u32> = data
             .prs_newest_first
             .iter()
             .copied()
             .filter(|&i| {
-                let pr = &data.snapshot.pull_requests[i as usize];
-                pr.repo == repo_index
-                    && branch_index.is_none_or(|b| pr.branch == b)
-                    && (in_range(day_of(pr.created_at), start, Some(self.today))
-                        || in_range(day_of(pr.merged_at), start, Some(self.today)))
+                in_scope(i)
+                    && (in_range(day_of(pr_at(i).created_at), start, Some(self.today))
+                        || in_range(day_of(pr_at(i).merged_at), start, Some(self.today)))
             })
             .take(50)
-            .map(|i| data.pull_request_view(i))
             .collect();
+        shown
+            .extend((0..data.snapshot.pull_requests.len() as u32).filter(|&i| in_scope(i) && pr_at(i).state == "open"));
+        shown.sort_unstable();
+        shown.dedup();
+        shown.sort_by_key(|&i| std::cmp::Reverse((pr_at(i).updated_at.or(pr_at(i).created_at), pr_at(i).number)));
+        let pull_requests: Vec<Value> = shown.into_iter().map(|i| data.pull_request_view(i, self.today)).collect();
         let selected_label = repo
             .target_branches
             .iter()
@@ -476,7 +509,8 @@ impl View<'_> {
             "top_contributors": activity["top_contributors"],
             "top_reviewers": activity["top_reviewers"].as_array().map(|rows| rows.iter().take(12).cloned().collect::<Vec<_>>()),
             "languages": activity["languages"],
-            "recent_pull_requests": recent,
+            "pull_requests": pull_requests,
+            "stale_after_days": STALE_AFTER_DAYS,
         }))
     }
 }

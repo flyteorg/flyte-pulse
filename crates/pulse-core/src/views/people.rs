@@ -212,7 +212,7 @@ impl View<'_> {
                     pr.author == key && range(day_of(pr.created_at)) && selected_ok(pr.repo)
                 })
                 .take(100)
-                .map(|i| data.pull_request_view(i))
+                .map(|i| data.pull_request_view(i, self.today))
                 .collect();
             let mut matched: Vec<(Option<i64>, u32)> = Vec::new();
             for (index, commit) in data.snapshot.commits.iter().enumerate() {

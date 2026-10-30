@@ -445,7 +445,7 @@ impl View<'_> {
             value
         };
         let pr_value = |row: &PrRow, categories: Value| -> Value {
-            let mut value = data.pull_request_view(row.index);
+            let mut value = data.pull_request_view(row.index, self.today);
             value["categories"] = categories;
             value
         };

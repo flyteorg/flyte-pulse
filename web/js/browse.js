@@ -70,6 +70,10 @@ function repositoryList(data) {
           column.count("commits", "Commits"),
           column.count("active_contributors", "Contributors"),
           column.percent("review_coverage", "Review coverage"),
+          column.count("open_pull_requests", "Open PRs"),
+          column.count("stale_pull_requests", "Stale PRs", {
+            title: "Open pull requests without activity for 60 days",
+          }),
         ],
         filters: [targetBranchFilter()],
         rows,
@@ -264,6 +268,22 @@ function repositoryFilters(data) {
   ]);
 }
 
+// Recent and open pull requests, most recently active first, so stale ones come last.
+function repositoryPullRequestsPanel(data) {
+  const rows = data.pull_requests || [];
+  const open = rows.filter((pr) => pr.state === "open").length;
+  const stale = rows.filter((pr) => pr.stale).length;
+  return panel({
+    title: "Pull requests",
+    subtitle: `Up to 50 opened or merged in the selected range and branch, and all ${number.format(open)} open (${number.format(stale)} stale: no activity for ${data.stale_after_days} days).`,
+    body: pullRequestTable("pull-requests", rows, {
+      repository: false,
+      activity: true,
+      sort: { key: "updated_at", direction: "desc" },
+    }),
+  });
+}
+
 function repositoryDetailPage(data) {
   const repo = data.repository;
   return (
@@ -304,10 +324,7 @@ function repositoryDetailPage(data) {
         sort: { key: "reviews", direction: "desc" },
       }),
     })}</section>` +
-    panel({
-      title: "Recent pull requests",
-      body: pullRequestTable("pull-requests", data.recent_pull_requests),
-    })
+    repositoryPullRequestsPanel(data)
   );
 }
 
