@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::state::{Language, TargetBranch};
 
-pub const MAGIC: &[u8; 8] = b"PULSE\x00\x00\x05";
+pub const MAGIC: &[u8; 8] = b"PULSE\x00\x00\x06";
 pub const NONE: u32 = u32::MAX;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -268,6 +268,8 @@ pub struct Pr {
     pub author_ai_identity: u32,
     /// AI identity if the author is AI by kind or by name, else NONE.
     pub author_provider_identity: u32,
+    /// GitHub's last update: pushes, comments, reviews, labels, and state changes.
+    pub updated_at: Option<i64>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]

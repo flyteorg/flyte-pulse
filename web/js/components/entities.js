@@ -6,6 +6,7 @@ import {
   aiIdentityLinks,
   escapeHtml,
   externalLink,
+  number,
   repositoryLink,
   userLink,
 } from "../common.js";
@@ -118,10 +119,28 @@ const categoryNames = (row) =>
   (row.categories || []).map((category) => category.replaceAll("_", " "));
 const categoryText = (row) => categoryNames(row).join(", ");
 
-// Pull requests, newest first. `author` and `state` add those columns; `attribution` adds
-// the AI attribution categories.
+// "open · stale" for an open pull request without activity for 60 days, else its state.
+const stateLabel = (row) => (row.stale ? "open · stale" : row.state);
+
+// Days from opening to the merge, or to today while open; unknown for closed ones.
+const DAY_MS = 86400000;
+function daysOpen(row) {
+  const end = row.merged_at || (row.state === "open" ? Date.now() : null);
+  if (!row.created_at || !end) return null;
+  return Math.max(0, Math.floor((new Date(end) - new Date(row.created_at)) / DAY_MS));
+}
+
+// Pull requests, newest first unless `sort` says otherwise. `repository`, `author`, and
+// `state` add those columns; `attribution` adds the AI attribution categories; `activity`
+// adds the last activity and the days open.
 export function pullRequestTable(id, rows, options = {}) {
-  const { author = true, state = true, attribution = false } = options;
+  const {
+    repository = true,
+    author = true,
+    state = true,
+    attribution = false,
+    activity = false,
+  } = options;
   const columns = [
     column.date("created_at", "Created"),
     column.text("title", "Pull request", {
@@ -129,11 +148,19 @@ export function pullRequestTable(id, rows, options = {}) {
       cell: (row) => externalLink(row.url, `#${row.number} ${row.title}`),
       className: "table-link",
     }),
-    repositoryColumn(
-      "Repository",
-      (row) => ({ id: row.repository_id, name: row.repository, target_branch: row.target_branch }),
-      { filter: "choice" },
-    ),
+    ...(repository
+      ? [
+          repositoryColumn(
+            "Repository",
+            (row) => ({
+              id: row.repository_id,
+              name: row.repository,
+              target_branch: row.target_branch,
+            }),
+            { filter: "choice" },
+          ),
+        ]
+      : []),
     column.text("target_branch", "Target branch", { filter: "choice" }),
     ...(author
       ? [
@@ -144,7 +171,36 @@ export function pullRequestTable(id, rows, options = {}) {
           ),
         ]
       : []),
-    ...(state ? [column.text("state", "State", { filter: "choice" })] : []),
+    ...(activity
+      ? [
+          column.date("updated_at", "Last activity", {
+            title: "Last push, comment, review, or label change",
+          }),
+          column.count("days_open", "Days open", {
+            title: "Days from opening to the merge, or to today while open",
+            value: daysOpen,
+            cell: (row) => {
+              const days = daysOpen(row);
+              return days == null ? "—" : number.format(days);
+            },
+          }),
+        ]
+      : []),
+    ...(state
+      ? [
+          column.text("state", "State", {
+            value: stateLabel,
+            title: "Open pull requests without activity for 60 days are stale",
+            cell: (row) =>
+              row.stale
+                ? `${escapeHtml(row.state)} · <span class="stale-label">stale</span>`
+                : escapeHtml(row.state || "—"),
+            filter: "choice",
+            // A stale pull request matches both "open" and "stale".
+            filterValue: (row) => (row.stale ? [row.state, "stale"] : row.state),
+          }),
+        ]
+      : []),
     ...(attribution
       ? [
           column.text("categories", "AI attribution", {
@@ -160,6 +216,7 @@ export function pullRequestTable(id, rows, options = {}) {
     columns,
     rows,
     empty: options.empty || "No pull requests to show.",
+    sort: options.sort,
   });
 }
 

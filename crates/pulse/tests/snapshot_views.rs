@@ -138,7 +138,10 @@ fn state() -> State {
 }
 
 fn dataset() -> Dataset {
-    let state = state();
+    dataset_of(state())
+}
+
+fn dataset_of(state: State) -> Dataset {
     let config = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     let companies = load_company_catalog(&config, &state.contributors).unwrap();
     let snapshot = build_snapshot(&state, &companies, parse_timestamp("2026-10-10T12:00:00Z").unwrap());
@@ -263,7 +266,7 @@ fn detail_pages_and_errors() {
     let data = dataset();
     let repo = get(&data, "/api/repositories/github/flyteorg/flyte?days=365&target_branch=main");
     assert_eq!(repo["summary"]["pull_requests_merged"], 1);
-    assert_eq!(repo["recent_pull_requests"][0]["url"], "https://github.com/flyteorg/flyte/pull/1");
+    assert_eq!(repo["pull_requests"][0]["url"], "https://github.com/flyteorg/flyte/pull/1");
     let repositories = get(&data, "/api/repositories")["repositories"].clone();
     assert_eq!(repositories.as_array().unwrap().len(), 3);
     // A branch row covers its branch; a repository-wide row covers every tracked branch.
@@ -293,6 +296,67 @@ fn detail_pages_and_errors() {
     assert_eq!(data.request("/api/repositories/github/flyteorg/nope", today()).unwrap_err().status, 404);
     assert_eq!(data.request("/api/companies/nope", today()).unwrap_err().status, 404);
     assert_eq!(data.request("/api/nope", today()).unwrap_err().status, 404);
+}
+
+#[test]
+fn stale_pull_requests() {
+    let mut state = state();
+    let open = |number: u64, created: &str, updated: Option<&str>, pr_state: &str| PullRequest {
+        repository_id: "github.com:R1".into(),
+        provider_id: format!("90{number}"),
+        number,
+        author_contributor_id: "github:2".into(),
+        title: format!("PR {number}"),
+        state: pr_state.into(),
+        created_at: ts(created),
+        updated_at: updated.and_then(ts),
+        target_branch: "master".into(),
+        ..PullRequest::default()
+    };
+    state.pull_requests.extend([
+        // Quiet for 87 days: stale.
+        open(4, "2026-07-01T10:00:00Z", Some("2026-07-15T10:00:00Z"), "open"),
+        // Opened long ago but updated recently: not stale.
+        open(5, "2026-01-05T10:00:00Z", Some("2026-10-01T10:00:00Z"), "open"),
+        // Closed pull requests are never stale.
+        open(6, "2026-01-01T10:00:00Z", None, "closed"),
+    ]);
+    let data = dataset_of(state);
+
+    let listed = |url: &str| {
+        let repo = get(&data, url);
+        let rows = repo["pull_requests"].as_array().unwrap().clone();
+        let numbers: Vec<_> = rows.iter().map(|pr| pr["number"].as_u64().unwrap()).collect();
+        let stale: Vec<_> = rows.iter().map(|pr| pr["stale"].as_bool().unwrap()).collect();
+        (repo, rows, numbers, stale)
+    };
+    // Most recently active first; PR 2 has no update time, so its creation counts.
+    let (repo, rows, numbers, stale) = listed("/api/repositories/github/flyteorg/flyte?days=365&target_branch=master");
+    assert_eq!(repo["stale_after_days"], 60);
+    assert_eq!(numbers, [2, 5, 4, 6]);
+    assert_eq!(stale, [false, false, true, false]);
+    assert_eq!(rows[0]["updated_at"], "2026-10-03T10:00:00+00:00");
+    assert_eq!(rows[2]["updated_at"], "2026-07-15T10:00:00+00:00");
+    // Open pull requests are listed whatever the range; closed ones only in it.
+    let (_, _, numbers, _) = listed("/api/repositories/github/flyteorg/flyte?days=30&target_branch=master");
+    assert_eq!(numbers, [2, 5, 4]);
+    let (_, _, numbers, _) = listed("/api/repositories/github/flyteorg/flyte?days=365&target_branch=main");
+    assert_eq!(numbers, [1]);
+
+    let repositories = get(&data, "/api/repositories")["repositories"].clone();
+    let counts = |name: &str| {
+        let row = repositories.as_array().unwrap().iter().find(|r| r["name"] == name).unwrap();
+        (row["open_pull_requests"].as_u64().unwrap(), row["stale_pull_requests"].as_u64().unwrap())
+    };
+    assert_eq!(counts("flyteorg/flyte · v1"), (3, 1));
+    assert_eq!(counts("flyteorg/flyte · v2"), (0, 0));
+    assert_eq!(counts("flyteorg/flytekit"), (0, 0));
+
+    // Every pull request table marks stale ones, such as a person's list.
+    let bob = get(&data, "/api/users/github/bob/history?days=all");
+    let bob_prs = bob["pull_requests"].as_array().unwrap();
+    assert!(bob_prs.iter().any(|pr| pr["number"] == 4 && pr["stale"] == true));
+    assert!(bob_prs.iter().all(|pr| pr["number"] == 4 || pr["stale"] == false));
 }
 
 #[test]

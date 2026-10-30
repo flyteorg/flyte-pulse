@@ -572,6 +572,14 @@ a {
   color: var(--muted);
 }
 
+/* An open pull request without activity for 60 days. */
+.stale-label {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--highlight) 30%, transparent);
+  font-weight: 600;
+}
+
 .link-button {
   margin-top: 10px;
   padding: 0;
@@ -848,6 +856,12 @@ tbody tr:hover td {
 .table-link {
   white-space: normal;
   min-width: 180px;
+}
+
+/* Tables keep every cell on one line, so long titles wrap only within this width. */
+.table-link > .external-link {
+  display: inline-block;
+  max-width: 34em;
 }
 
 .table-link small {
