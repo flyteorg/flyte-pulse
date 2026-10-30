@@ -963,8 +963,18 @@ tbody tr:hover td {
   contain: size;
 }
 
-.contributors-results > .data-table,
-.contributors-results > .data-table > .table-wrap {
+.contributors-results > .data-table {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.contributors-results > .data-table > .table-rows {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.contributors-results .table-wrap {
   height: 100%;
 }
 
