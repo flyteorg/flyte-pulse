@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use pulse_core::state::{Commit, CompanyObservation, Contributor, PullRequest, PullRequestReview, State};
+use pulse_core::state::{
+    Commit, CompanyObservation, Contributor, PullRequest, PullRequestCommit, PullRequestReview, State,
+};
 use pulse_core::time::{Ts, parse_date, parse_timestamp};
 
 use super::*;
@@ -37,6 +39,11 @@ affiliations:
 - username: helper-bot
   companies:
   - company: lyft
+- username: ivy
+  companies:
+  - company: union
+    from: '2020-01-01'
+    until: '2021-01-01'
 ";
 
 fn ts(value: &str) -> Option<Ts> {
@@ -121,6 +128,11 @@ fn setup() -> (tempfile::TempDir, State) {
         },
     ];
     state.contributors.push(grace);
+    // henry: profile names Union, but no credited activity, so nothing is proposed.
+    state.contributors.push(person("github:9", "henry", "@unionai"));
+    // ivy: curated Union for 2020 only, profile now names Lyft; she has not contributed
+    // since, so the conflict credits nothing and is not listed.
+    state.contributors.push(person("github:10", "ivy", "Lyft"));
     let mut bot = person("github:7", "helper-bot", "");
     bot.identity_kind = "BOT".into();
     bot.identity_kind_source = "CATALOG_RULE".into();
@@ -133,7 +145,20 @@ fn setup() -> (tempfile::TempDir, State) {
         commit('e', "github:5", "2021-07-01T00:00:00Z", "union.ai"),
         commit('f', "github:5", "2026-09-01T00:00:00Z", "union.ai"),
         commit('g', "github:8", "2025-11-20T00:00:00Z", ""),
+        // Not linked to a pull request, so it credits nothing: henry stays without activity.
+        commit('h', "github:9", "2026-09-01T00:00:00Z", ""),
     ];
+    // Commits count when they belong to a tracked pull request.
+    state.pull_request_commits = state
+        .commits
+        .iter()
+        .filter(|c| c.author_contributor_id != "github:9")
+        .map(|c| PullRequestCommit {
+            repository_id: c.repository_id.clone(),
+            pull_request_id: String::new(),
+            commit_sha: c.sha.clone(),
+        })
+        .collect();
     state.pull_requests = vec![PullRequest {
         repository_id: "github.com:R1".into(),
         author_contributor_id: "github:2".into(),
@@ -141,8 +166,12 @@ fn setup() -> (tempfile::TempDir, State) {
         ..PullRequest::default()
     }];
     // Reviews count as activity: alice has nothing else, and carol's is her latest.
-    state.pull_request_reviews =
-        vec![review("github:1", "2024-08-21T00:00:00Z"), review("github:3", "2026-05-01T00:00:00Z")];
+    state.pull_request_reviews = vec![
+        review("github:1", "2024-08-21T00:00:00Z"),
+        review("github:3", "2026-05-01T00:00:00Z"),
+        review("github:4", "2026-07-01T00:00:00Z"),
+        review("github:10", "2020-06-01T00:00:00Z"),
+    ];
     (dir, state)
 }
 
@@ -211,7 +240,9 @@ fn finds_companies_affiliations_and_changes() {
     );
     assert!(report.contains("| [alice](https://github.com/alice) | Union | all activity | 2024-08-21 |"), "{report}");
     assert!(report.contains("| [bob](https://github.com/bob) | Union | all activity | 2026-08-15 to 2026-09-01 |"));
-    assert!(report.contains("| [dave](https://github.com/dave) | Acme Labs | all activity | none |"));
+    assert!(report.contains("| [dave](https://github.com/dave) | Acme Labs | all activity | 2026-07-01 |"));
+    assert!(!report.contains("henry"), "no affiliation without credited activity: {report}");
+    assert!(!report.contains("[ivy]"), "no conflict that credits nothing: {report}");
     assert!(report.contains("### Start dates for current affiliations"));
     assert!(report.contains("| [erin](https://github.com/erin) | Union | 2021-07-01 |"));
     assert!(report.contains("profile company `@unionai`"), "{report}");
@@ -290,6 +321,11 @@ affiliations:
 - username: helper-bot
   companies:
   - company: lyft
+- username: ivy
+  companies:
+  - company: union
+    from: '2020-01-01'
+    until: '2021-01-01'
 "
     );
 

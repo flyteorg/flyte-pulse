@@ -18,6 +18,7 @@ pub use edit::apply;
 
 use crate::companies::{CompanyCatalog, load_company_catalog, normalize_company, url_host};
 use crate::config::{apply_identity_rules, bot_name, load_catalog};
+use crate::metrics::Facts;
 use crate::report::{append, thousands, today};
 use crate::state_io::read_state;
 use crate::sync::github::Organization;
@@ -295,9 +296,16 @@ fn domain_runs(state: &State) -> HashMap<&str, Vec<DomainRun>> {
 
 /// First and last tracked activity per contributor: commits, opened pull requests,
 /// and submitted reviews.
+/// First and last credited activity per contributor, counted the way company credit is:
+/// commits linked to a tracked pull request (on the day they landed), pull requests
+/// opened and merged, and reviews.
 fn activity_ranges(state: &State) -> HashMap<&str, (i64, i64)> {
-    let commits = state.commits.iter().map(|c| (&c.author_contributor_id, c.authored_at.or(c.committed_at)));
-    let pull_requests = state.pull_requests.iter().map(|p| (&p.author_contributor_id, p.created_at));
+    let facts = Facts::new(state);
+    let commits = facts.counted_commits().map(|c| (&c.author_contributor_id, c.committed_at.or(c.authored_at)));
+    let pull_requests = state
+        .pull_requests
+        .iter()
+        .flat_map(|p| [(&p.author_contributor_id, p.created_at), (&p.author_contributor_id, p.merged_at)]);
     let reviews = state.pull_request_reviews.iter().map(|r| (&r.reviewer_contributor_id, r.submitted_at));
     let mut ranges: HashMap<&str, (i64, i64)> = HashMap::new();
     for (id, at) in commits.chain(pull_requests).chain(reviews) {
@@ -758,7 +766,10 @@ pub fn discover(
         let undated = catalog.current.get(id);
         let periods = catalog.periods.get(id).cloned().unwrap_or_default();
         if undated.is_none() && periods.is_empty() {
-            if let Some((company, evidence)) = &signal {
+            // Without credited activity an affiliation would credit nothing.
+            if let Some((company, evidence)) = &signal
+                && !first_activity.is_empty()
+            {
                 discovery.affiliations.push(NewAffiliation {
                     login: contributor.login.clone(),
                     company_id: company.clone(),
@@ -858,7 +869,12 @@ pub fn discover(
                     changed = true;
                 }
             }
+            // A conflict matters only while the current affiliation covers activity: when
+            // the latest activity falls under another period, nothing is credited by it.
+            let current_has_activity = !last_activity.is_empty()
+                && catalog.effective(id, &last_activity).map_or("", |a| a.company_id.as_str()) == effective;
             if !changed
+                && current_has_activity
                 && let Some((company, evidence)) = &signal
                 && *company != effective
             {
@@ -1027,7 +1043,7 @@ pub fn markdown(discovery: &Discovery, catalog: &CompanyCatalog, applied: Option
         let _ = writeln!(
             out,
             "### New affiliations\n\nAn entry without a start date applies to all of the contributor's activity. \
-             Activity is the range of their tracked commits, pull requests, and reviews.\n\n\
+             Activity is the range of their credited commits, pull requests, and reviews.\n\n\
              | Contributor | Company | Since | Activity | Evidence |\n|---|---|---|---|---|"
         );
         for a in &discovery.affiliations {
