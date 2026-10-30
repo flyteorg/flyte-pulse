@@ -547,6 +547,31 @@ a {
   font-size: 13px;
 }
 
+/* Filters above a table: one control per filterable column and the match count. */
+.table-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 1rem;
+  margin: 0 0 0.75rem;
+}
+
+.table-filters .field {
+  min-width: 9rem;
+}
+
+.table-filters input[type="search"] {
+  width: 100%;
+  min-width: 9rem;
+}
+
+.table-filter-status {
+  margin-left: auto;
+  align-self: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 .link-button {
   margin-top: 10px;
   padding: 0;

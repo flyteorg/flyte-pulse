@@ -264,7 +264,13 @@ fn detail_pages_and_errors() {
     let repo = get(&data, "/api/repositories/github/flyteorg/flyte?days=365&target_branch=main");
     assert_eq!(repo["summary"]["pull_requests_merged"], 1);
     assert_eq!(repo["recent_pull_requests"][0]["url"], "https://github.com/flyteorg/flyte/pull/1");
-    assert_eq!(get(&data, "/api/repositories")["repositories"].as_array().unwrap().len(), 3);
+    let repositories = get(&data, "/api/repositories")["repositories"].clone();
+    assert_eq!(repositories.as_array().unwrap().len(), 3);
+    // A branch row covers its branch; a repository-wide row covers every tracked branch.
+    let branches =
+        |name: &str| repositories.as_array().unwrap().iter().find(|r| r["name"] == name).unwrap()["branches"].clone();
+    assert_eq!(branches("flyteorg/flyte · v2"), serde_json::json!(["main"]));
+    assert_eq!(branches("flyteorg/flytekit"), serde_json::json!(["master"]));
 
     let users = get(&data, "/api/users");
     assert_eq!(users["users"].as_array().unwrap().len(), 2);

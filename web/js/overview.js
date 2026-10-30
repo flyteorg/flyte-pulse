@@ -34,6 +34,7 @@ import {
   repositoryColumn,
   repositoryShare,
   reviewerColumns,
+  targetBranchFilter,
 } from "./components/entities.js";
 import { column, dataTable } from "./components/table.js";
 import { PulseLoading } from "./loading.js";
@@ -351,6 +352,7 @@ export function mountOverview(root) {
             column.count("additions", "Lines added"),
             column.count("deletions", "Lines removed"),
           ],
+          filters: [targetBranchFilter()],
           rows: data.repository_activity,
           empty: "No repository activity in this range.",
         }),

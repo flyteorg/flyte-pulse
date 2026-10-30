@@ -93,9 +93,12 @@ function affiliationEnded(affiliation) {
 }
 
 // Status and period columns for rows whose `affiliation(row)` is an affiliation period.
-function affiliationColumns(affiliation) {
+function affiliationColumns(affiliation, { filter = false } = {}) {
   return [
-    column.text("status", "Status", { value: (row) => affiliationState(affiliation(row)) }),
+    column.text("status", "Status", {
+      value: (row) => affiliationState(affiliation(row)),
+      ...(filter ? { filter: "choice" } : {}),
+    }),
     column.date("from", "From", {
       value: (row) => affiliation(row).valid_from,
       cell: (row) =>
@@ -201,7 +204,7 @@ function profileMatchesTable(profileMatches) {
         value: (row) => (row.name || row.login || "").toLocaleLowerCase(),
         cell: (row) => userLink(row.id, row.name, row.login),
       }),
-      ...affiliationColumns((row) => row.affiliation),
+      ...affiliationColumns((row) => row.affiliation, { filter: true }),
     ],
     rows: profileMatches,
     empty: "No profiles matched.",
