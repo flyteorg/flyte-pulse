@@ -773,10 +773,15 @@ pub fn discover(
             let mut changed = false;
             let map_profile =
                 |value: &str| -> String { catalog.aliases.get(&normalize_company(value)).cloned().unwrap_or_default() };
+            // A profile change matters only when the person contributed on or after it;
+            // otherwise the current affiliation already covers all their activity. The
+            // observations stay, so the change is proposed if they contribute again.
+            let active_since =
+                |since: &str| since.is_empty() || (!last_activity.is_empty() && last_activity.as_str() >= since);
             if let [.., previous, last] = contributor.profile_company_history.as_slice() {
                 let (before, after) = (map_profile(&previous.company), map_profile(&last.company));
-                if before != after && after != effective {
-                    let since = last.observed_at.map(|t| date(t.0)).unwrap_or_default();
+                let since = last.observed_at.map(|t| date(t.0)).unwrap_or_default();
+                if before != after && after != effective && active_since(&since) {
                     let until =
                         previous.last_observed_at.or(previous.observed_at).map(|t| date(t.0)).unwrap_or_default();
                     discovery.changes.push(Change {
@@ -813,7 +818,9 @@ pub fn discover(
                     [] if left && signal.as_ref().is_none_or(|(s, _)| *s != effective) => Some(String::new()),
                     _ => None,
                 };
-                if let Some(to) = target {
+                if let Some(to) = target
+                    && active_since(&since)
+                {
                     discovery.changes.push(Change {
                         login: contributor.login.clone(),
                         contributor_id: id.to_string(),

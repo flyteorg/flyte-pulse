@@ -204,7 +204,9 @@ From these it proposes email domains and organization aliases for known companie
 new companies (from a single `@org` named in a profile, or an organization whose
 website is an email domain several people use), affiliations for contributors
 without one, affiliation changes (the old period ends when the new value was first
-seen), and earlier affiliations from a clean switch of email domains. The current
+seen; a change is proposed only for people who contributed on or after that day,
+since otherwise their current affiliation already covers all their activity), and
+earlier affiliations from a clean switch of email domains. The current
 affiliation then starts where the earlier one ends, including an existing undated
 entry. Entries are inserted in sorted order. Anything
 ambiguous, such as several companies in one profile or a conflict with a curated

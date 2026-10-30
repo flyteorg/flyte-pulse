@@ -31,6 +31,9 @@ affiliations:
 - username: erin
   companies:
   - company: union
+- username: grace
+  companies:
+  - company: lyft
 - username: helper-bot
   companies:
   - company: lyft
@@ -103,6 +106,21 @@ fn setup() -> (tempfile::TempDir, State) {
     // erin: curated Union, commits from lyft.com before union.ai (an earlier affiliation).
     state.contributors.push(person("github:5", "erin", "Union"));
     state.contributors.push(person("github:6", "frank", "Student"));
+    // grace: curated Lyft, profile changed to Union after her last contribution.
+    let mut grace = person("github:8", "grace", "Union");
+    grace.profile_company_history = vec![
+        CompanyObservation {
+            company: "Lyft".into(),
+            observed_at: ts("2026-01-01T00:00:00Z"),
+            last_observed_at: ts("2026-03-01T00:00:00Z"),
+        },
+        CompanyObservation {
+            company: "Union".into(),
+            observed_at: ts("2026-03-08T00:00:00Z"),
+            last_observed_at: ts("2026-10-01T00:00:00Z"),
+        },
+    ];
+    state.contributors.push(grace);
     let mut bot = person("github:7", "helper-bot", "");
     bot.identity_kind = "BOT".into();
     bot.identity_kind_source = "CATALOG_RULE".into();
@@ -114,6 +132,7 @@ fn setup() -> (tempfile::TempDir, State) {
         commit('d', "github:5", "2021-05-01T00:00:00Z", "lyft.com"),
         commit('e', "github:5", "2021-07-01T00:00:00Z", "union.ai"),
         commit('f', "github:5", "2026-09-01T00:00:00Z", "union.ai"),
+        commit('g', "github:8", "2025-11-20T00:00:00Z", ""),
     ];
     state.pull_requests = vec![PullRequest {
         repository_id: "github.com:R1".into(),
@@ -159,6 +178,7 @@ fn finds_companies_affiliations_and_changes() {
         discovery.affiliations.iter().map(|a| (a.login.as_str(), a.company_id.as_str())).collect();
     assert_eq!(affiliations, vec![("alice", "union"), ("bob", "union"), ("dave", "acme-labs")]);
 
+    // grace's profile changed too, but after her last contribution, so nothing is proposed.
     assert_eq!(discovery.changes.len(), 1);
     let change = &discovery.changes[0];
     assert_eq!((change.login.as_str(), change.from.as_str(), change.to.as_str()), ("carol", "lyft", "union"));
@@ -264,6 +284,9 @@ affiliations:
     until: '2021-07-01'
   - company: union
     from: '2021-07-01'
+- username: grace
+  companies:
+  - company: lyft
 - username: helper-bot
   companies:
   - company: lyft
