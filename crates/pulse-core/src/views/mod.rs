@@ -212,6 +212,15 @@ impl Dataset {
         self.snapshot.branches.get(index as usize).map_or("", String::as_str)
     }
 
+    /// The tracked branches a repository row covers: the one branch it is for, or all
+    /// of the repository's target branches for a repository-wide row.
+    pub fn branch_names<'a>(&'a self, repo: u32, branch: Option<&'a str>) -> Vec<&'a str> {
+        match branch {
+            Some(name) if !name.is_empty() => vec![name],
+            _ => self.repo(repo).target_branches.iter().map(|b| b.name.as_str()).collect(),
+        }
+    }
+
     pub fn branch_index(&self, name: &str) -> Option<u32> {
         self.snapshot.branches.iter().position(|b| b == name).map(|i| i as u32)
     }

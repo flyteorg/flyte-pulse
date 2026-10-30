@@ -318,6 +318,7 @@ impl View<'_> {
                 "name": data.repository_label(repo, branch),
                 "target_branch": branch.map_or("", |b| b.0),
                 "branch_label": branch.map_or("", |b| b.1),
+                "branches": data.branch_names(repo, branch.map(|b| b.0)),
                 "pull_requests_opened": values.get(MetricKind::PullRequestsCreated),
                 "pull_requests_merged": values.get(MetricKind::PullRequestsMerged),
                 "commits": values.get(MetricKind::Commits),
@@ -417,6 +418,7 @@ impl View<'_> {
                     "name": data.repository_label(index as u32, branch.map(|b| (b.name.as_str(), b.label.as_str()))),
                     "target_branch": branch.map_or("", |b| b.name.as_str()),
                     "branch_label": branch.map_or("", |b| b.label.as_str()),
+                    "branches": data.branch_names(index as u32, branch.map(|b| b.name.as_str())),
                     "status": repo.status_label(),
                     "summary": activity["summary"],
                 }));

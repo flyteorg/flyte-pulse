@@ -44,6 +44,7 @@ import {
   repositoryColumn,
   repositoryShare,
   reviewerColumns,
+  targetBranchFilter,
 } from "./components/entities.js";
 import { column, dataTable } from "./components/table.js";
 import { currentRoute, replaceParams } from "./route.js";
@@ -63,12 +64,13 @@ function repositoryList(data) {
         id: "repositories",
         columns: [
           repositoryColumn(),
-          column.text("status", "Status"),
+          column.text("status", "Status", { filter: "choice" }),
           column.count("pull_requests_merged", "Merged PRs"),
           column.count("commits", "Commits"),
           column.count("active_contributors", "Contributors"),
           column.percent("review_coverage", "Review coverage"),
         ],
+        filters: [targetBranchFilter()],
         rows,
         empty: "No repositories are in the catalog yet.",
         sort: { key: "pull_requests_merged", direction: "desc" },
@@ -211,7 +213,7 @@ function contributorAiPanel(data) {
     ${dataTable({
       id: "contributor-ai-models",
       columns: [
-        column.text("provider", "Provider"),
+        column.text("provider", "Provider", { filter: "choice" }),
         column.text("model", "Model"),
         column.count("commits", "Commits"),
         column.count("pull_requests", "Pull requests"),
@@ -535,7 +537,6 @@ function aiContributorDetailPage(data) {
       title: "Recent AI-attributed pull requests",
       body: pullRequestTable("ai-pull-requests", data.recent_pull_requests || [], {
         author: false,
-        state: false,
         attribution: true,
         empty: "No AI-attributed pull requests in this range.",
       }),
@@ -638,6 +639,7 @@ function aiActivityPage(data) {
           column.count("pull_requests_ai_coauthored", "PRs with AI co-author"),
           column.count("pull_requests_ai_assisted", "PRs with AI assistance"),
         ],
+        filters: [targetBranchFilter()],
         rows: data.by_repository,
         empty: "No AI attribution has been identified yet.",
       }),
@@ -649,7 +651,6 @@ function aiActivityPage(data) {
     panel({
       title: "Recent AI-attributed pull requests",
       body: pullRequestTable("ai-pull-requests", data.recent_pull_requests, {
-        state: false,
         attribution: true,
         empty: "No AI-attributed pull requests.",
       }),

@@ -14,8 +14,8 @@ import { column, dataTable } from "./table.js";
 
 const self = (row) => row;
 
-// `person(row)` returns { id, name, login }.
-export function personColumn(label = "Contributor", person = self) {
+// `person(row)` returns { id, name, login }; `options` extend the column.
+export function personColumn(label = "Contributor", person = self, options = {}) {
   return column.text("person", label, {
     value: (row) => {
       const p = person(row);
@@ -25,18 +25,34 @@ export function personColumn(label = "Contributor", person = self) {
       const p = person(row);
       return userLink(p.id, p.name, p.login);
     },
+    filterValue: (row) => {
+      const p = person(row);
+      return [p.name || "", p.login || ""];
+    },
+    ...options,
   });
 }
 
-// `repository(row)` returns { id, name, target_branch }.
-export function repositoryColumn(label = "Repository", repository = self) {
+// `repository(row)` returns { id, name, target_branch }; `options` extend the column.
+export function repositoryColumn(label = "Repository", repository = self, options = {}) {
   return column.text("repository", label, {
     value: (row) => repository(row).name || "",
     cell: (row) => {
       const r = repository(row);
       return repositoryLink(r.id, r.name, r.target_branch);
     },
+    ...options,
   });
+}
+
+// A filter on the tracked branches of repository rows: `branches` lists the branches a row
+// covers (one for a branch row, all of them for a repository-wide row).
+export function targetBranchFilter() {
+  return {
+    key: "target_branch",
+    label: "Target branch",
+    value: (row) => row.branches || row.target_branch,
+  };
 }
 
 // Dashboard contributor rows (overview lists, repository top contributors).
@@ -63,16 +79,17 @@ export function reviewerColumns() {
   ];
 }
 
-function providerColumn(key) {
+function providerColumn(key, options = {}) {
   return column.text("provider", "Provider", {
     cell: (row) => aiContributorLink(row[key], row.provider, "", row.provider, row.provider),
+    ...options,
   });
 }
 
 // AI model rows (overview AI list, AI activity page).
 export function aiModelColumns() {
   return [
-    providerColumn("provider_key"),
+    providerColumn("provider_key", { filter: "choice", filterValue: (row) => row.provider }),
     column.text("model", "Model"),
     column.count("commits_with_ai", "Commits with AI"),
     column.count("commits_ai_authored", "AI-authored commits"),
@@ -86,7 +103,7 @@ export function aiModelColumns() {
 
 export function aiProviderColumns() {
   return [
-    providerColumn("key"),
+    providerColumn("key", { filter: "choice", filterValue: (row) => row.provider }),
     column.count("commits_with_ai", "Commits with AI"),
     column.count("commits_ai_authored", "AI-authored commits"),
     column.count("commits_ai_coauthored", "AI co-authored commits"),
@@ -97,8 +114,9 @@ export function aiProviderColumns() {
   ];
 }
 
-const categoryText = (row) =>
-  (row.categories || []).map((category) => category.replaceAll("_", " ")).join(", ");
+const categoryNames = (row) =>
+  (row.categories || []).map((category) => category.replaceAll("_", " "));
+const categoryText = (row) => categoryNames(row).join(", ");
 
 // Pull requests, newest first. `author` and `state` add those columns; `attribution` adds
 // the AI attribution categories.
@@ -111,26 +129,28 @@ export function pullRequestTable(id, rows, options = {}) {
       cell: (row) => externalLink(row.url, `#${row.number} ${row.title}`),
       className: "table-link",
     }),
-    repositoryColumn("Repository", (row) => ({
-      id: row.repository_id,
-      name: row.repository,
-      target_branch: row.target_branch,
-    })),
-    column.text("target_branch", "Target branch"),
+    repositoryColumn(
+      "Repository",
+      (row) => ({ id: row.repository_id, name: row.repository, target_branch: row.target_branch }),
+      { filter: "choice" },
+    ),
+    column.text("target_branch", "Target branch", { filter: "choice" }),
     ...(author
       ? [
-          personColumn("Author", (row) => ({
-            id: row.author_id,
-            name: row.author_name,
-            login: row.author_login,
-          })),
+          personColumn(
+            "Author",
+            (row) => ({ id: row.author_id, name: row.author_name, login: row.author_login }),
+            { filter: "text" },
+          ),
         ]
       : []),
-    ...(state ? [column.text("state", "State")] : []),
+    ...(state ? [column.text("state", "State", { filter: "choice" })] : []),
     ...(attribution
       ? [
           column.text("categories", "AI attribution", {
             value: (row) => categoryText(row) || "AI attribution",
+            filter: "choice",
+            filterValue: categoryNames,
           }),
         ]
       : []),
@@ -166,18 +186,24 @@ export function commitTable(id, rows, options = {}) {
         cell: (row) => externalLink(row.url, row.subject || row.message || row.sha),
         className: "table-link",
       }),
-      repositoryColumn("Repository", (row) => ({ id: row.repository_id, name: row.repository })),
+      repositoryColumn("Repository", (row) => ({ id: row.repository_id, name: row.repository }), {
+        filter: "choice",
+      }),
       column.text("target_branches", "Target branches", {
         value: (row) => (row.target_branches || []).join(" "),
         cell: (row) =>
           (row.target_branches || [])
             .map((branch) => repositoryLink(row.repository_id, branch, branch))
             .join(" ") || "—",
+        filter: "choice",
+        filterValue: (row) => row.target_branches || [],
       }),
       column.text("attribution", "Attribution", {
         value: attributionText,
         cell: attribution,
         className: "table-link",
+        filter: "choice",
+        filterValue: (row) => (row.categories?.length ? row.categories : [row.role || "Author"]),
       }),
     ],
     rows,

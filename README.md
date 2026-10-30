@@ -25,8 +25,10 @@ day from public GitHub activity.
 - **AI Activity**: AI authorship and assistance found in commit trailers and AI
   accounts.
 
-Every table sorts by any column, and filters and sort order are kept in the page
-address, so any view can be shared as a link.
+Every table sorts by any column, and tables of pull requests, commits, repositories
+and AI models can be filtered by repository, target branch, state, author or
+provider. Filters and sort order are kept in the page address, so any view can be
+shared as a link.
 
 ## How activity is counted
 

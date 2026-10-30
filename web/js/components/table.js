@@ -1,13 +1,17 @@
 import { escapeHtml, formatDate, formatPercent, number } from "../common.js";
 import { currentRoute, replaceParams } from "../route.js";
+import { textMatches } from "./controls.js";
 
-// Every table sorts by any column. Clicking a heading re-sorts the table in place and keeps
-// the order in the URL (`<id>_sort`, `<id>_dir`), so a page only describes its columns.
+// Every table sorts by any column, and columns can filter their rows. Clicking a heading
+// re-sorts the table in place and keeps the order in the URL (`<id>_sort`, `<id>_dir`);
+// a filter selection is kept as `<id>_<key>`, so a page only describes its columns.
 //
-// A column is { key, label, title?, value?, cell?, type?, sortable?, className? }: `title`
-// explains a short label, `value(row)` is what it sorts by (default `row[key]`), `cell(row)`
-// its HTML (default the escaped value), and `type` "number" or "date" right-aligns numbers
-// and sorts largest or newest first.
+// A column is { key, label, title?, value?, cell?, type?, sortable?, className?, filter?,
+// filterValue? }: `title` explains a short label, `value(row)` is what it sorts by (default
+// `row[key]`), `cell(row)` its HTML (default the escaped value), and `type` "number" or
+// "date" right-aligns numbers and sorts largest or newest first. `filter` "choice" adds a
+// dropdown of the column's distinct values above the table, "text" a search box;
+// `filterValue(row)` (default `value`) is the text or list of texts a row matches with.
 const tables = new Map();
 
 export const column = {
@@ -98,30 +102,162 @@ function cell(item, row) {
   return `<td${classes ? ` class="${classes}"` : ""}>${html}</td>`;
 }
 
-function render(spec) {
-  if (!spec.rows.length) return `<div class="empty">${escapeHtml(spec.empty)}</div>`;
+// The table's filters: columns with `filter`, then the spec's own `filters`, each as
+// { key, label, kind, value(row) }.
+function filterDefs(spec) {
+  const fromColumns = spec.columns
+    .filter((item) => item.filter)
+    .map((item) => ({
+      key: item.key,
+      label: item.label,
+      kind: item.filter,
+      value: item.filterValue || ((row) => valueOf(item, row)),
+    }));
+  return [...fromColumns, ...(spec.filters || []).map((f) => ({ kind: "choice", ...f }))];
+}
+
+const texts = (value) =>
+  (Array.isArray(value) ? value : [value])
+    .filter((text) => text != null && text !== "")
+    .map(String);
+
+// The selected value of each filter, from the URL.
+function filterState(spec) {
+  const params = currentRoute().params;
+  const state = new Map();
+  for (const def of filterDefs(spec)) {
+    const selected = params.get(`${spec.id}_${def.key}`);
+    if (selected) state.set(def.key, selected);
+  }
+  return state;
+}
+
+function filtered(spec, state) {
+  if (!state.size) return spec.rows;
+  const defs = filterDefs(spec).filter((def) => state.has(def.key));
+  return spec.rows.filter((row) =>
+    defs.every((def) => {
+      const values = texts(def.value(row));
+      const selected = state.get(def.key);
+      return def.kind === "text" ? textMatches(selected, values) : values.includes(selected);
+    }),
+  );
+}
+
+function filterControl(spec, def, selected) {
+  const id = `${spec.id}-filter-${def.key}`;
+  const label = `<label for="${id}">${escapeHtml(def.label)}</label>`;
+  if (def.kind === "text") {
+    return `<div class="field">${label}<input id="${id}" type="search" data-filter-key="${escapeHtml(def.key)}" value="${escapeHtml(selected)}" autocomplete="off"></div>`;
+  }
+  const counts = new Map();
+  for (const row of spec.rows) {
+    for (const text of new Set(texts(def.value(row))))
+      counts.set(text, (counts.get(text) || 0) + 1);
+  }
+  const options = [...counts.keys()]
+    .sort((a, b) => a.localeCompare(b))
+    .map(
+      (text) =>
+        `<option value="${escapeHtml(text)}"${text === selected ? " selected" : ""}>${escapeHtml(text)} (${number.format(counts.get(text))})</option>`,
+    )
+    .join("");
+  return `<div class="field">${label}<select id="${id}" data-filter-key="${escapeHtml(def.key)}"><option value="">All</option>${options}</select></div>`;
+}
+
+function filterBar(spec, state) {
+  const defs = filterDefs(spec);
+  if (!defs.length) return "";
+  const controls = defs.map((def) => filterControl(spec, def, state.get(def.key) || "")).join("");
+  return `<div class="table-filters" role="group" aria-label="Table filters">${controls}${filterStatus(spec, state)}</div>`;
+}
+
+function filterStatus(spec, state) {
+  const shown = filtered(spec, state).length;
+  const total = spec.rows.length;
+  const clear = state.size
+    ? ` <button type="button" class="link-button" data-filter-clear>Clear</button>`
+    : "";
+  return `<div class="table-filter-status" aria-live="polite">${number.format(shown)} of ${number.format(total)} rows${clear}</div>`;
+}
+
+function renderRows(spec) {
+  const rows = filtered(spec, filterState(spec));
+  if (!rows.length) return `<div class="empty">No rows match the filters.</div>`;
   const sort = sortState(spec);
   const headings = spec.columns.map((item) => heading(item, sort)).join("");
-  const rows = ordered(spec, sort)
+  const body = ordered({ ...spec, rows }, sort)
     .map((row) => `<tr>${spec.columns.map((item) => cell(item, row)).join("")}</tr>`)
     .join("");
   // Long lists scroll after about ten rows with the header kept in view.
-  return `<div class="table-wrap table-scroll"><table><thead><tr>${headings}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="table-wrap table-scroll"><table><thead><tr>${headings}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+
+function render(spec) {
+  if (!spec.rows.length) return `<div class="empty">${escapeHtml(spec.empty)}</div>`;
+  return `${filterBar(spec, filterState(spec))}<div class="table-rows">${renderRows(spec)}</div>`;
+}
+
+// Redraw the rows and the match count after a sort or filter change, keeping the controls.
+function refresh(region, spec) {
+  const rows = region.querySelector(".table-rows");
+  if (rows) rows.innerHTML = renderRows(spec);
+  const status = region.querySelector(".table-filter-status");
+  if (status) status.outerHTML = filterStatus(spec, filterState(spec));
 }
 
 // `id` names the table in the URL and must be unique on its page. `sort` is the initial
-// { key, direction }; without one, rows keep their given order.
-export function dataTable({ id, columns, rows, empty = "No data available.", sort }) {
-  const spec = { id, columns, rows: rows || [], empty, sort };
+// { key, direction }; without one, rows keep their given order. `filters` adds filters that
+// are not columns, as { key, label, value(row) } choices.
+export function dataTable({ id, columns, rows, empty = "No data available.", sort, filters }) {
+  const spec = { id, columns, rows: rows || [], empty, sort, filters };
   tables.set(id, spec);
   return `<div class="data-table" data-table="${escapeHtml(id)}">${render(spec)}</div>`;
 }
 
-document.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-sort-key]");
-  const region = button?.closest("[data-table]");
+function tableOf(element) {
+  const region = element?.closest("[data-table]");
   const spec = region && tables.get(region.dataset.table);
-  if (!spec) return;
+  return spec ? { region, spec } : null;
+}
+
+function setFilter(spec, key, value) {
+  const params = currentRoute().params;
+  if (value) params.set(`${spec.id}_${key}`, value);
+  else params.delete(`${spec.id}_${key}`);
+  replaceParams(params);
+}
+
+document.addEventListener("change", (event) => {
+  const select = event.target.closest("select[data-filter-key]");
+  const table = tableOf(select);
+  if (!table) return;
+  setFilter(table.spec, select.dataset.filterKey, select.value);
+  refresh(table.region, table.spec);
+});
+
+document.addEventListener("input", (event) => {
+  const input = event.target.closest("input[data-filter-key]");
+  const table = tableOf(input);
+  if (!table) return;
+  setFilter(table.spec, input.dataset.filterKey, input.value.trim());
+  refresh(table.region, table.spec);
+});
+
+document.addEventListener("click", (event) => {
+  const clear = event.target.closest("[data-filter-clear]");
+  const cleared = tableOf(clear);
+  if (cleared) {
+    const params = currentRoute().params;
+    for (const def of filterDefs(cleared.spec)) params.delete(`${cleared.spec.id}_${def.key}`);
+    replaceParams(params);
+    cleared.region.innerHTML = render(cleared.spec);
+    return;
+  }
+  const button = event.target.closest("[data-sort-key]");
+  const table = tableOf(button);
+  if (!table) return;
+  const { region, spec } = table;
   const key = button.dataset.sortKey;
   const current = sortState(spec);
   const item = spec.columns.find((candidate) => candidate.key === key);
@@ -131,6 +267,6 @@ document.addEventListener("click", (event) => {
   params.set(`${spec.id}_sort`, key);
   params.set(`${spec.id}_dir`, direction);
   replaceParams(params);
-  region.innerHTML = render(spec);
+  refresh(region, spec);
   region.querySelector(`[data-sort-key="${CSS.escape(key)}"]`)?.focus();
 });
