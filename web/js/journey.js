@@ -21,7 +21,8 @@ function tenure(span) {
   return parts.join(" · ");
 }
 
-export function journeyPage(data) {
+// `badge` is the key of the achievement to highlight, from the page's `badge` parameter.
+export function journeyPage(data, { badge = "" } = {}) {
   const user = data.contributor;
   const unlocked = (data.achievements || []).filter((badge) => badge.unlocked).length;
   return (
@@ -35,7 +36,7 @@ export function journeyPage(data) {
     })}${panel({
       title: "Achievements",
       subtitle: `${unlocked} of ${(data.achievements || []).length} unlocked`,
-      body: achievementGrid(data.achievements),
+      body: achievementGrid(data.achievements, { highlight: badge }),
       className: "journey-achievements",
     })}</section>`
   );
