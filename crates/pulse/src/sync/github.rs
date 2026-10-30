@@ -57,13 +57,28 @@ pub struct Response {
 impl Response {
     /// Fail on GraphQL errors, optionally tolerating NOT_FOUND (e.g. a renamed login).
     pub fn check(&self, allow_not_found: bool) -> Result<()> {
-        let fatal: Vec<String> = self
-            .errors
-            .iter()
-            .filter(|e| !(allow_not_found && e["type"] == "NOT_FOUND"))
-            .map(|e| e["message"].as_str().unwrap_or("unknown error").to_string())
-            .collect();
-        if fatal.is_empty() { Ok(()) } else { bail!("GitHub GraphQL errors: {}", fatal.join("; ")) }
+        self.check_except(allow_not_found, "").map(|_| ())
+    }
+
+    /// Like `check`, but errors on the field named `optional` are tolerated: GraphQL
+    /// nulls that field and returns the rest of the data. Returns how many were skipped.
+    pub fn check_except(&self, allow_not_found: bool, optional: &str) -> Result<usize> {
+        let mut skipped = 0;
+        let mut fatal = Vec::new();
+        for error in &self.errors {
+            let field = error["path"].as_array().and_then(|p| p.last()).and_then(Value::as_str).unwrap_or("");
+            if (allow_not_found && error["type"] == "NOT_FOUND") || (!optional.is_empty() && field == optional) {
+                skipped += 1;
+                continue;
+            }
+            let message = error["message"].as_str().unwrap_or("unknown error");
+            let path = error["path"]
+                .as_array()
+                .map(|p| p.iter().filter_map(Value::as_str).collect::<Vec<_>>().join("."))
+                .unwrap_or_default();
+            fatal.push(if path.is_empty() { message.to_string() } else { format!("{message} (at {path})") });
+        }
+        if fatal.is_empty() { Ok(skipped) } else { bail!("GitHub GraphQL errors: {}", fatal.join("; ")) }
     }
 }
 
@@ -338,9 +353,12 @@ query($owner:String!,$name:String!,$base:String!,$after:String,$first:Int!){
         Ok(result)
     }
 
-    /// Public profiles by login; `None` when the login no longer exists.
+    /// Public profiles by login; `None` when the login no longer exists. The workflow
+    /// token cannot read most users' organizations ("Resource not accessible by
+    /// integration"); those profiles come back with `organizations: None`.
     pub fn users(&mut self, logins: &[String]) -> Result<HashMap<String, Option<Account>>> {
         let mut result = HashMap::new();
+        let mut without_organizations = 0;
         for batch in logins.chunks(USERS_PER_QUERY) {
             let mut fields = String::new();
             for (index, login) in batch.iter().enumerate() {
@@ -351,10 +369,13 @@ query($owner:String!,$name:String!,$base:String!,$after:String,$first:Int!){
             }
             let query = format!("query{{rateLimit{{cost remaining resetAt}}\n{fields}}}");
             let response = self.query(&query, json!({}))?;
-            response.check(true)?;
+            without_organizations += response.check_except(true, "organizations")?;
             for (index, login) in batch.iter().enumerate() {
                 result.insert(login.clone(), user_account(&response.data[format!("u{index}")]));
             }
+        }
+        if without_organizations > 0 {
+            eprintln!("  profiles: organizations not readable with this token for {without_organizations} users");
         }
         Ok(result)
     }
@@ -625,6 +646,29 @@ mod tests {
         assert!(reviews[1].author.is_none(), "deleted accounts have no author");
         assert_eq!(node.more_reviews(), Some("Y3Vyc29y"));
         assert!(reviews!("first:50").starts_with("reviews(first:50,states:[APPROVED,"));
+    }
+
+    #[test]
+    fn optional_field_errors_are_skipped() {
+        let response = Response {
+            data: json!({"u0": {"databaseId": 1, "login": "alice", "organizations": null}}),
+            errors: vec![
+                json!({"type": "FORBIDDEN", "message": "Resource not accessible by integration", "path": ["u0", "organizations"]}),
+                json!({"type": "NOT_FOUND", "message": "Could not resolve to a User", "path": ["u1"]}),
+            ],
+        };
+        assert!(response.check(true).is_err());
+        assert_eq!(response.check_except(true, "organizations").unwrap(), 2);
+        let account = user_account(&response.data["u0"]).unwrap();
+        assert_eq!(account.organizations, None);
+        let other = Response {
+            data: json!({}),
+            errors: vec![json!({"type": "FORBIDDEN", "message": "nope", "path": ["u0", "company"]})],
+        };
+        assert_eq!(
+            other.check_except(true, "organizations").unwrap_err().to_string(),
+            "GitHub GraphQL errors: nope (at u0.company)"
+        );
     }
 
     #[test]
