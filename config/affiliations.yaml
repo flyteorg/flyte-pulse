@@ -164,9 +164,6 @@ affiliations:
 - username: bryan-hunted
   companies:
   - company: hunted-labs
-- username: bweber-rebellion
-  companies:
-  - company: rebellion-defense
 - username: byjiang1996
   companies:
   - company: linkedin
@@ -368,7 +365,6 @@ affiliations:
   - company: arctic-wolf
 - username: hamersaw
   companies:
-  - company: lancedb
   - company: union
     # Attribution starts at his first known Flyte contribution, not a verified hire date.
     from: '2021-08-17'
@@ -439,10 +435,6 @@ affiliations:
 - username: jeremydonahue
   companies:
   - company: ziprecruiter
-- username: jimbobby5
-  companies:
-  - company: g-research
-    from: '2026-10-18'
 - username: jingchanglu
   companies:
   - company: xiamen-university
@@ -639,7 +631,6 @@ affiliations:
   - company: together-ai
 - username: pvditt
   companies:
-  - company: xdof
   - company: union
     # Attribution starts at his first known Flyte contribution, not a verified hire date.
     from: '2023-11-29'
@@ -715,8 +706,6 @@ affiliations:
   - company: neptune-ai
     from: '2024-08-21'
     until: '2024-08-22'
-  - company: openai
-    from: '2026-04-14'
 - username: sighingnow
   companies:
   - company: alibaba
@@ -781,9 +770,6 @@ affiliations:
   companies:
   - company: spotify
 - username: ttitsworth-lila
-  companies:
-  - company: lila-sciences
-- username: tylertitsworth
   companies:
   - company: lila-sciences
 - username: uduse

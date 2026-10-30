@@ -203,14 +203,17 @@ changes. The signals are:
 From these it proposes email domains and organization aliases for known companies,
 new companies (from a single `@org` named in a profile, or an organization whose
 website is an email domain several people use), affiliations for contributors
-without one, affiliation changes (the old period ends when the new value was first
+without one who have credited activity, affiliation changes (the old period ends when the new value was first
 seen; a change is proposed only for people who contributed on or after that day,
 since otherwise their current affiliation already covers all their activity), and
 earlier affiliations from a clean switch of email domains. The current
 affiliation then starts where the earlier one ends, including an existing undated
 entry. Entries are inserted in sorted order. Anything
 ambiguous, such as several companies in one profile or a conflict with a curated
-mapping, is listed for a person instead. Values in `config/discovery.yaml` are
+mapping, is listed for a person instead; a conflict is listed only while the
+current affiliation covers some of the person's activity. Activity here is what
+company credit counts: commits linked to a tracked pull request, on the day they
+landed, pull requests opened and merged, and reviews. Values in `config/discovery.yaml` are
 never proposed again.
 
 The `main` ruleset requests a Copilot review on every push, and the workflow posts
