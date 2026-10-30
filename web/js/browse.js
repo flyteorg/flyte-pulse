@@ -22,6 +22,7 @@ import {
   loadCompanyShare,
 } from "./companies.js";
 import { activityPanel, languagePanel, sharePie } from "./components/charts.js";
+import { revealBadge } from "./components/timeline.js";
 import { contributorTabs, journeyPage } from "./journey.js";
 import {
   bindFilters,
@@ -686,7 +687,8 @@ export async function loadBrowsePage(route, requestId) {
   } else if (journey) {
     data = await getJson(`/api/users/${encodePath(id)}/journey`);
     if (stale()) return;
-    content.innerHTML = journeyPage(data);
+    content.innerHTML = journeyPage(data, { badge: params.get("badge") || "" });
+    revealBadge(params.get("badge"));
   } else if (section === "users" && !id) {
     data = await getJson("/api/users");
     if (stale()) return;

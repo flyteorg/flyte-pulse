@@ -1604,13 +1604,57 @@ tbody tr:hover td {
 }
 
 .badge {
+  position: relative;
   display: flex;
   gap: 12px;
   align-items: start;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-small);
-  padding: 12px 14px;
+  padding: 12px 36px 12px 14px;
   background: var(--surface-raised);
+}
+
+/* The badge a shared link points at: the yellow highlight stands out from the accent. */
+.badge.highlighted {
+  border-color: var(--highlight);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--highlight) 40%, transparent),
+    0 6px 20px color-mix(in srgb, var(--highlight) 30%, transparent);
+  opacity: 1;
+}
+
+.badge-share {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.badge-share svg {
+  width: 14px;
+  height: 14px;
+}
+
+.badge-share:hover,
+.badge-share:focus-visible {
+  background: var(--surface-hover);
+  color: var(--accent-text);
+}
+
+.badge-share-note {
+  position: absolute;
+  right: 36px;
+  top: 12px;
+  font-size: 11px;
+  color: var(--accent-text);
 }
 
 .badge-text {
