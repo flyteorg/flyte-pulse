@@ -16,7 +16,6 @@ way, and these PRs often name many real contributors.
 - Put free-form text that may contain handles, such as profile company values or
   organization aliases like `@unionai`, in code spans, where GitHub creates no
   mention.
-- The only intended mention is the discovery workflow's `@Copilot` review request.
 
 ## Commits
 

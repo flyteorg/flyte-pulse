@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Open or update the company discovery pull request with the config edits made by
-# `pulse discover --apply`, run CI on it, and ask Copilot to check the proposals.
+# `pulse discover --apply`, and run CI on it.
 # Usage: scripts/discovery-pr.sh REPORT.md
-# Needs GH_TOKEN; COPILOT_TOKEN (a user token with Copilot access) is optional.
+# Needs GH_TOKEN.
 set -euo pipefail
 
 report="$1"
@@ -18,7 +18,7 @@ fi
 
 if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
   git fetch --quiet origin "$branch"
-  # A person or Copilot pushed to the branch: keep their edits until it is merged or closed.
+  # Someone else pushed to the branch: keep their edits until it is merged or closed.
   if [ "$(git log -1 --format=%ae "origin/$branch")" != "$bot_email" ]; then
     echo "::notice::$branch has commits from someone else; not updating it."
     exit 0
@@ -37,21 +37,9 @@ git -c user.name="$bot_name" -c user.email="$bot_email" \
 git push --quiet --force origin "$branch"
 
 pr="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')"
-created=false
 if [ -z "$pr" ]; then
   gh pr create --base main --head "$branch" \
     --title "Company and affiliation updates" --body-file "$report"
-  pr="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number')"
-  created=true
 else
   gh pr edit "$pr" --body-file "$report"
-fi
-
-# The repository ruleset requests a Copilot review on every push. The comment asks
-# Copilot to check and fix the proposals; Copilot only acts on mentions from a user
-# with Copilot access, so it uses COPILOT_TOKEN when that is set. Without it the
-# comment is only posted once, when the pull request is opened.
-if [ "$created" = true ] || [ -n "${COPILOT_TOKEN:-}" ]; then
-  GH_TOKEN="${COPILOT_TOKEN:-$GH_TOKEN}" gh pr comment "$pr" --body-file scripts/copilot-discovery-review.md \
-    || echo "::notice::Could not comment on pull request #$pr."
 fi
