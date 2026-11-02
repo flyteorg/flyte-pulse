@@ -174,9 +174,12 @@ Anything ambiguous is listed under "Needs a person" and left unchanged.
 
 To review it:
 
-1. Check the evidence for each change. Fix anything wrong by editing the branch.
-   After someone else pushes, the bot stops updating the pull request until it is
-   merged or closed.
+1. Check each change. A new company must exist, with its official name, website,
+   and email domains. Each account must be a real person; give a bot an
+   `identity_rules` entry instead of an affiliation. The evidence must support the
+   company and the dates, which are first and last observations, not employment
+   dates. Fix anything wrong by editing the branch. After someone else pushes, the
+   bot stops updating the pull request until it is merged or closed.
 2. Approve the held CI run ("Approve workflows to run"), which GitHub requires for
    pushes made by workflows.
 3. Merge. Merging approves the changes.

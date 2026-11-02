@@ -216,14 +216,8 @@ company credit counts: commits linked to a tracked pull request, on the day they
 landed, pull requests opened and merged, and reviews. Values in `config/discovery.yaml` are
 never proposed again.
 
-The `main` ruleset requests a Copilot review on every push, and the workflow posts
-an `@Copilot` comment asking it to verify company names and websites, that each
-account is a real person, and that the evidence supports each affiliation. Copilot
-acts on mentions from users with Copilot access, so set a `PULSE_COPILOT_TOKEN`
-secret (a user token) for that; without it the comment is posted once, when the pull
-request is opened. GitHub holds CI for pushes by the workflow, so approve the CI run
-on the pull request ("Approve workflows to run") after each update to get the
-required checks.
+GitHub holds CI for pushes by the workflow, so approve the CI run on the pull request
+("Approve workflows to run") after each update to get the required checks.
 Once someone else pushes to the branch, the workflow stops updating it until it is
 merged or closed. Run the workflow with `full_git` once to backfill email domains for
 history collected before this feature.

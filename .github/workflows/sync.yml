@@ -172,8 +172,6 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           PULSE_GITHUB_TOKEN: ${{ secrets.PULSE_GITHUB_TOKEN }}
           GH_TOKEN: ${{ github.token }}
-          # Optional user token with Copilot access, so Copilot acts on the review request.
-          COPILOT_TOKEN: ${{ secrets.PULSE_COPILOT_TOKEN }}
         run: |
           ./target/release/pulse discover --state data-branch/state --config-dir config --apply \
             --report discovery.md --summary-file "$GITHUB_STEP_SUMMARY"
