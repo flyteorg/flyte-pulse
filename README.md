@@ -19,9 +19,9 @@ day from public GitHub activity.
   activity, company affiliations, reviews, AI usage, pull requests, and commits.
 - **Journey**: the second tab of a contributor's page: a timeline from their first
   contribution to their latest activity (first merged pull request, 100 merged pull
-  requests, first contribution to each repository, anniversaries, affiliation changes)
-  and achievements with the date each was unlocked. Each achievement has a button that
-  copies a link to the page with that badge highlighted.
+  requests, first contribution to each repository, anniversaries, first contribution
+  from each company) and achievements with the date each was unlocked. Each achievement
+  has a button that copies a link to the page with that badge highlighted.
 - **Companies**: contributions credited to each company and the people affiliated
   with it.
 - **AI Activity**: AI authorship and assistance found in commit trailers and AI

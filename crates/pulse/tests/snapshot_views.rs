@@ -141,9 +141,16 @@ fn dataset() -> Dataset {
     dataset_of(state())
 }
 
+fn fixtures() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
+}
+
 fn dataset_of(state: State) -> Dataset {
-    let config = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
-    let companies = load_company_catalog(&config, &state.contributors).unwrap();
+    dataset_with_config(state, &fixtures())
+}
+
+fn dataset_with_config(state: State, config: &Path) -> Dataset {
+    let companies = load_company_catalog(config, &state.contributors).unwrap();
     let snapshot = build_snapshot(&state, &companies, parse_timestamp("2026-10-10T12:00:00Z").unwrap());
     Dataset::new(Snapshot::decode(&snapshot.encode().unwrap()).unwrap())
 }
@@ -379,6 +386,72 @@ fn page_paths_and_stable_ids() {
     assert_eq!(options[0]["id"], "github/flyteorg/flyte");
     let companies = get(&data, "/api/companies?days=all&repository=github/flyteorg/flyte&target_branch=main");
     assert_eq!(companies["filters"]["repository"], "github/flyteorg/flyte");
+}
+
+#[test]
+fn journey_dates_affiliations_by_first_contribution() {
+    let config = tempfile::tempdir().unwrap();
+    let companies = std::fs::read_to_string(fixtures().join("companies.yaml")).unwrap();
+    std::fs::write(
+        config.path().join("companies.yaml"),
+        format!("{companies}- id: anyscale\n  canonical_name: Anyscale\n  website_url: https://anyscale.com\n"),
+    )
+    .unwrap();
+    // Alice is active on October 1, 2, 3, and 5.
+    let union = "Contributing from Union";
+    let anyscale = "Contributing from Anyscale";
+    let independent = "Independent contributor";
+    let cases: [(&str, &[(&str, &str)]); 6] = [
+        // The first period has no contributions, and the others start before their first one.
+        (
+            "  - {company: union, from: '2026-09-01', until: '2026-09-15'}
+  - {company: independent, from: '2026-09-15', until: '2026-10-04'}
+  - {company: union, from: '2026-10-04'}
+",
+            &[("2026-10-01", independent), ("2026-10-05", union)],
+        ),
+        // The undated company covers the days around a dated period.
+        (
+            "  - {company: anyscale}
+  - {company: union, from: '2026-09-01', until: '2026-10-03'}
+",
+            &[("2026-10-01", union), ("2026-10-03", anyscale)],
+        ),
+        (
+            "  - {company: anyscale}
+  - {company: union, from: '2026-10-02', until: '2026-10-03'}
+",
+            &[("2026-10-01", anyscale), ("2026-10-02", union), ("2026-10-03", anyscale)],
+        ),
+        // No company covers the other days; only leaving one is an event.
+        (
+            "  - {company: union, from: '2026-10-02', until: '2026-10-03'}\n",
+            &[("2026-10-02", union), ("2026-10-03", independent)],
+        ),
+        // Adjoining periods at one company are not a move.
+        (
+            "  - {company: union, from: '2026-09-01', until: '2026-10-02'}
+  - {company: union, from: '2026-10-02'}
+",
+            &[("2026-10-01", union)],
+        ),
+        // One undated company never changes.
+        ("  - {company: anyscale}\n", &[]),
+    ];
+    for (companies, expected) in cases {
+        let affiliations = format!("affiliations:\n- username: alice\n  companies:\n{companies}");
+        std::fs::write(config.path().join("affiliations.yaml"), affiliations).unwrap();
+        let data = dataset_with_config(state(), config.path());
+        let journey = get(&data, "/api/users/github/alice/journey");
+        let entries: Vec<(&str, &str)> = journey["timeline"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|e| e["kind"] == "affiliation")
+            .map(|e| (e["date"].as_str().unwrap(), e["title"].as_str().unwrap()))
+            .collect();
+        assert_eq!(entries, expected, "{companies}");
+    }
 }
 
 #[test]
