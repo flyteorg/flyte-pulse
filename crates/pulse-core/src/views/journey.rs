@@ -459,21 +459,36 @@ impl View<'_> {
             snapshot.companies.iter().map(|c| (c.id.as_str(), c)).collect();
         let affiliation_history =
             profile_affiliations(&person.affiliation, &person.affiliations, &companies, &format_date(today));
-        for row in &affiliation_history {
-            let name = row["company_name"].as_str().unwrap_or_default();
-            let independent = row["company_id"] == "independent";
-            // The start of each credited period; its end is not an event, since the
-            // dates bound the credited contributions, not the person's employment.
-            if let Some(day) = row["valid_from"].as_str().and_then(crate::time::parse_date).filter(|&d| d <= today) {
-                let event = if independent {
-                    Event::new(day, 7, "affiliation", "Independent contributor")
-                        .detail("Contributions from this day are not credited to a company")
-                } else {
-                    Event::new(day, 7, "affiliation", format!("Contributing from {name}"))
-                        .detail(format!("Contributions from this day are credited to {name}"))
-                };
-                events.push(event);
+        // Entries follow company credit: a dated period covers its days, the undated company
+        // covers the others, and no match means Independent. Only people with dated periods
+        // change company, and starting out without one is not an event.
+        let date = |row: &Value, field: &str| row[field].as_str().and_then(crate::time::parse_date);
+        let undated =
+            affiliation_history.iter().find(|row| row["source"] == "CURATED" && date(row, "valid_from").is_none());
+        let periods: Vec<_> = affiliation_history
+            .iter()
+            .filter_map(|row| Some((date(row, "valid_from")?, date(row, "valid_until"), row)))
+            .collect();
+        let mut credited = None;
+        for &day in active_days.iter().filter(|_| !periods.is_empty()) {
+            let row = periods
+                .iter()
+                .find(|(from, until, _)| *from <= day && until.is_none_or(|until| day < until))
+                .map(|(_, _, row)| *row)
+                .or(undated);
+            let company = row.map_or("independent", |row| row["company_id"].as_str().unwrap_or_default());
+            if credited == Some(company) || (credited.is_none() && row.is_none()) {
+                continue;
             }
+            credited = Some(company);
+            events.push(if company == "independent" {
+                Event::new(day, 7, "affiliation", "Independent contributor")
+                    .detail("Contributions from this day are not credited to a company")
+            } else {
+                let name = row.and_then(|row| row["company_name"].as_str()).unwrap_or_default();
+                Event::new(day, 7, "affiliation", format!("Contributing from {name}"))
+                    .detail(format!("Contributions from this day are credited to {name}"))
+            });
         }
 
         // Anniversaries and tenure.
